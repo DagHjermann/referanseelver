@@ -38,7 +38,7 @@ df_chem_allcolumns <- get_biota_chemistry(
   methoddata = df_methods, 
   report_samples = TRUE)
 
-# We pick the most impoartan columns (i.e. we skip the index variables) 
+# We pick the most important columns (i.e. we skip the index variables) 
 df_chem <- df_chem_allcolumns %>%
   select(STATION_CODE, STATION_NAME, SAMPLE_DATE, TISSUE_NAME, LATIN_NAME,
          SAMPLE_NO, REPNO, NAME, VALUE, FLAG1, UNIT)
@@ -114,7 +114,33 @@ saveRDS(df_chem_allcolumns, "2018data/02_df_chem_allcolumns.rds")
 saveRDS(df_chem, "2018data/02_df_chem.rds")
 
 
-  
+#
+# 7. Get water sample data ----
+#
 
+# df_stations <- get_stations_from_project("Overvåkning i referanseelver", ignore.case = FALSE)
+df_watersamples <- get_nivabase_selection("*", "WATER_SAMPLES", "STATION_ID", df_stations$STATION_ID)
+nrow(df_watersamples)  # 755
+head(df_watersamples)
+xtabs(~lubridate::year(SAMPLE_DATE), df_watersamples)
 
+df_watersamples <- df_watersamples %>%
+  left_join(df_stations %>% select(STATION_ID, STATION_CODE, STATION_NAME))
+
+# Get all values (note: also 2017 data)
+df_watervalues <- get_nivabase_selection("*",
+                                         "WATER_CHEMISTRY_VALUES", 
+                                         "WATER_SAMPLE_ID", 
+                                         df_watersamples$WATER_SAMPLE_ID)
+
+df_watervalues <- df_watervalues %>% 
+  left_join(df_methods, by = "METHOD_ID")
+df_watervalues <- df_watervalues %>% 
+  left_join(df_watersamples %>% select(WATER_SAMPLE_ID, STATION_ID, STATION_CODE, STATION_NAME), by = "WATER_SAMPLE_ID")
+nrow(df_watervalues) # 22453
+
+#
+# 8. Save water sample data ----
+#
+saveRDS(df_watervalues, "2018data/02_df_waterchem.rds")
 
