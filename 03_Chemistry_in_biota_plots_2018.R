@@ -21,6 +21,7 @@ df_eqs <- read_excel("Input_2018data/EQS data med navn - korrigert.xlsx")
 df_eqs <- df_eqs[,1:7]
 df_eqs <- rename(df_eqs, EQS = `EQS (µg/kg)`)
 
+# xtabs(~NAME, df_chem)
 
 # 3. Make plots ----
 
