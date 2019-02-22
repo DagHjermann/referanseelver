@@ -10,6 +10,8 @@ library(niRvana)
 df_stationmeta <- read_excel("Input_2018data/Stasjonsoversikt 2018 løpende oppdatert_.xlsx", sheet = 1) %>% 
   rename(STATION_CODE = `Aquamonitor stasjonskode`,
          Rapportnavn = `Kortnavn/Rapportnavn`)
+df_stationmeta$Lengdegrad <- as.numeric(df_stationmeta$Lengdegrad)
+df_stationmeta$Breddegrad <- as.numeric(df_stationmeta$Breddegrad)
 
 # Fix one
 sel <- df_stationmeta$STATION_CODE %in% "F_212-1729_Lah"; sum(sel) 
@@ -136,11 +138,19 @@ df_watervalues <- get_nivabase_selection("*",
 df_watervalues <- df_watervalues %>% 
   left_join(df_methods, by = "METHOD_ID")
 df_watervalues <- df_watervalues %>% 
-  left_join(df_watersamples %>% select(WATER_SAMPLE_ID, STATION_ID, STATION_CODE, STATION_NAME), by = "WATER_SAMPLE_ID")
+  left_join(df_watersamples %>% select(WATER_SAMPLE_ID, SAMPLE_DATE, DEPTH1, DEPTH2, STATION_ID, STATION_CODE, STATION_NAME), by = "WATER_SAMPLE_ID")
 nrow(df_watervalues) # 22453
+
+df_watervalues <- df_watervalues %>%
+  left_join(df_stationmeta %>% select(STATION_CODE, Rapportnavn, Lengdegrad, Breddegrad),
+            by = "STATION_CODE")
+nrow(df_watervalues)  # 22453
+
+df_watervalues$VALUE <- sub(",", ".", df_watervalues$VALUE) %>% as.numeric()
 
 #
 # 8. Save water sample data ----
 #
 saveRDS(df_watervalues, "2018data/02_df_waterchem.rds")
+# df_watervalues <- readRDS("2018data/02_df_waterchem.rds")
 
