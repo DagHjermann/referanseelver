@@ -156,6 +156,41 @@ make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreak
 # make_tukeyplot_log(testlist, ylab = "Sum PCB 7", ybreaks = c(0.0002, 0.001, 0.01), letterposition = 0.05)
 # make_tukeyplot_log(testlist, ylab = "Sum PCB 7", ybreaks = c(0.0002, 0.001, 0.01), extra_limit = 0.001)
 
+# For PFAS: shape = Prøvevekt instead of shape = SAMPLE_NO
+make_tukeyplot_log_pfas <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
+                                    letterposition = 0, linecolors = c("#e31a1c", "#ff7f00")) {
+  df1 <- datalist[[1]]
+  df2 <- datalist[[2]]
+  if (letterposition %in% -1){
+    df2$VALUE <- max(df2$VALUE, na.rm = TRUE)
+  } else if (letterposition > 0) {
+    df2$VALUE <- letterposition
+  }
+  limits <- datalist[[3]]$EQS
+  #if (!is.na(extra_limit))
+  #  limits <- c(limits, extra_limit)
+  df1 <- df1 %>%
+    mutate(Prøvevekt = case_when(
+      Sample_weight < 0.2 ~ "Prøvevekt < 0.2 g",       # cross = symbol 4
+      Sample_weight < 0.3 ~ "Prøvevekt 0.2 - 0.3 g",   # open square = symbol 0
+      Sample_weight >= 0.3 ~ "Prøvevekt >= 0.3 g"))    # filled square = symbol 16
+  gg <- ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO))) +
+    geom_point(aes(shape = Prøvevekt), size = rel(3)) +       # special for PFAS
+    geom_text(data = df2, aes(label = .group), color = "black") +
+    geom_hline(yintercept = limits, colour = linecolors[1], linetype = 2, size = 1) +
+    facet_grid(.~Rapportnavn) +
+    scale_shape_manual("Prøvevekt", values = c(4,16,0)) +   # see symbol overview above
+    scale_fill_manual("Prøvenr", values = c('#c51b8a','#fa9fb5','#fde0dd')) +
+    scale_x_continuous(breaks = c(1,2,3), limits = c(0.5,3.5)) +
+    scale_y_log10(breaks = ybreaks, labels = no_extra_digits) +
+    labs(x = xlab, y = ylab) +
+    theme_bw() +
+    theme(strip.text=element_text(angle=90, hjust=0.5, vjust=0), strip.background = element_rect(fill = "white")) +
+    theme(legend.position = "none")
+  if (!is.na(extra_limit))
+    gg <- gg + geom_hline(yintercept = extra_limit, colour = linecolors[2], linetype = 2, size = 1)
+  gg
+}
 
 
 make_tukeyplot_ordinary <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA) {
@@ -179,4 +214,31 @@ make_tukeyplot_ordinary <- function(datalist, xlab = "Prøvenummer", ylab = "", y
     theme(legend.position = "none")
 }
 
+
+make_tukeyplot_pah_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
+                               letterposition = 0, linecolors = c("#e31a1c", "#ff7f00")) {
+  df1 <- datalist[[1]]
+  df2 <- datalist[[2]]
+  if (letterposition %in% -1){
+    df2$VALUE <- max(df2$VALUE, na.rm = TRUE)
+  } else if (letterposition > 0) {
+    df2$VALUE <- letterposition
+  }
+  limits <- datalist[[3]]$EQS
+  #if (!is.na(extra_limit))
+  #  limits <- c(limits, extra_limit)
+  gg <- ggplot(df1 %>% arrange(desc(SAMPLE_NO)), aes(SAMPLE_NO, VALUE, fill = SAMPLE_NO)) +
+    geom_point(size = rel(3), pch = 21) +
+    geom_text(data = df2, aes(label = .group), color = "black") +
+    geom_hline(yintercept = limits, colour = linecolors[1], linetype = 2, size = 1) +
+    facet_grid(.~Rapportnavn) +
+    scale_y_log10(breaks = ybreaks, labels = no_extra_digits) +
+    labs(x = xlab, y = ylab) +
+    theme_bw() +
+    theme(strip.text=element_text(angle=90, hjust=0.5, vjust=0), strip.background = element_rect(fill = "white")) +
+    theme(legend.position = "none")
+  if (!is.na(extra_limit))
+    gg <- gg + geom_hline(yintercept = extra_limit, colour = linecolors[2], linetype = 2, size = 1)
+  gg
+}
 
