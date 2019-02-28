@@ -1,3 +1,7 @@
+#
+# Gets chemical data i biota  (parts 3-5) and in water (parts 6-8) from NIVAbasen
+#
+
 
 # 1. Libraries ----
 
@@ -17,7 +21,7 @@ df_stationmeta$Breddegrad <- as.numeric(df_stationmeta$Breddegrad)
 sel <- df_stationmeta$STATION_CODE %in% "F_212-1729_Lah"; sum(sel) 
 df_stationmeta$STATION_CODE[sel] <- "F_212-1729_Láh"
 
-# 3. Chemical data ----
+# 3. Chemical data i biota ----
 
 set_credentials()
 
@@ -111,7 +115,42 @@ if (!"BDE6S" %in% unique(df_chem$NAME))
 
 nrow(df_chem)  # 3085
 
-# 6. Save result ----
+
+## b. PFOS + PFOA
+
+pars <- c("Perfluoroktylsulfonat (PFOS)", "Perfluoroktansyre (PFOA)")
+sumvars_check(pars)
+
+# debugonce(sumvars_calc)
+df_sum <- sumvars_calc(pars)
+xtabs(~STATION_CODE + SAMPLE_NO, df_sum)
+xtabs(N ~ STATION_CODE + SAMPLE_NO, df_sum)
+xtabs(OverLOQ ~ STATION_CODE + SAMPLE_NO, df_sum)
+
+df_sum$NAME <- "PFOS_PFOA_sum"
+df_sum$FLAG1 <- with(df_sum, ifelse(OverLOQ < 0.5*N, "<", as.character(NA)))
+df_sum$OverLOQ <- NULL
+df_sum$N <- NULL
+
+check <- FALSE
+if (check){
+df_chem %>%
+  ungroup() %>%
+  filter(Rapportnavn %in% "22. Kjaglielva (Ø)" & NAME %in% pars) %>% 
+  select(STATION_CODE, SAMPLE_NO, Rapportnavn, VALUE, NAME, FLAG1)
+
+df_sum %>%
+  ungroup() %>%
+  filter(Rapportnavn %in% "22. Kjaglielva (Ø)") %>% 
+  select(STATION_CODE, SAMPLE_NO, Rapportnavn, VALUE, NAME, FLAG1)
+}
+
+# Add to dataset
+if (!"PFOS_PFOA_sum" %in% unique(df_chem$NAME))
+  df_chem <- bind_rows(df_chem, df_sum)
+
+nrow(df_chem)  # 3106
+
 saveRDS(df_chem_allcolumns, "2018data/02_df_chem_allcolumns.rds")
 saveRDS(df_chem, "2018data/02_df_chem.rds")
 
