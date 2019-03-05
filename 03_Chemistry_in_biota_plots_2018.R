@@ -1,6 +1,8 @@
 
 
-# Chemistry plots (not including PAH metabol.) does
+#
+# Chemistry plots (including PAH metabol.) 
+#
 
 
 # 1. Libraries ----
@@ -32,7 +34,10 @@ df_eqs <- rename(df_eqs, EQS = `EQS (µg/kg)`)
 
 sel <- df_eqs$NAME %in% "SumPBDE6"; sum(sel)
 df_eqs$NAME[sel] <- "BDE6S"
-  
+
+sel <- df_eqs$NAME %in% "Sum PCB 7"; sum(sel)
+df_eqs$EQS[sel] <- 0.6                         # Update PCB EQS from 1 to 0.6
+
 # Special data set for PFAS sum (not entered into Aquamonitor)
 df_chem_pfas <- readxl::read_excel("Input_2018data/PFOS data with count.xlsx")
 # Pick Sum_PFAS only; set column names so they fit with df_chem
@@ -73,10 +78,11 @@ df_fish <- df_fish %>%
 
 #o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o
 #
-# 3a. Make plots, chemistry except PFAS ----
+# 3a. Make plots, BDE and Hg ----
 #
 #o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o
 
+save_plots <- TRUE
 save_plots <- FALSE
 
 ### PBDE (bromated flage retardants)
@@ -155,7 +161,7 @@ if (save_plots){
 
 
 
-### Dioxins
+### 3c. Dioxins ----
 
 #
 # NOTE: Last year, zero values (values beloq LOQ) were set to 7.50e-08 (half of LOQ = 1.50e-07)
@@ -186,6 +192,9 @@ if (save_plots){
 }
 
 
+#
+# 3d. MCCP, SCCP ----
+#
 
 
 ### MCCP
@@ -216,7 +225,9 @@ if (save_plots){
 
 
 
-### Sum PCB 7
+#
+# 3e. Sum PCB 7 ----
+#
 # Zero values (values beloq LOQ) are set to 0.11 (half of LOQ)
 
 # debugonce(perform_logtukeytest)
