@@ -61,7 +61,8 @@ plot_map_abs_OLD <- function(param, breaks, log = TRUE, direction = 1, data = df
 
 
 
-plot_map_abs <- function(param, breaks, log = TRUE, direction = 1, data = df_chem, yearshape = FALSE){
+plot_map_abs <- function(param, breaks, log = TRUE, direction = 1, data = df_chem, yearshape = FALSE, 
+                         colorscale = "magma"){
   legendtitle <- sub("-", "\n", param)
   if (yearshape){
     df <- data[,c("Lengdegrad", "Breddegrad", "Year", param)]
@@ -90,9 +91,11 @@ plot_map_abs <- function(param, breaks, log = TRUE, direction = 1, data = df_che
       geom_point(pch = 16, size = 3)
   }
   if (log){
-    gg <- gg + scale_color_viridis(legendtitle, trans = "log", breaks = breaks, labels = breaks, direction = direction)
+    gg <- gg + scale_color_viridis(legendtitle, trans = "log", 
+                                   breaks = breaks, labels = breaks, direction = direction, option = colorscale)
   } else  {
-    gg <- gg + scale_color_viridis(legendtitle, breaks = breaks, labels = breaks, direction = direction)
+    gg <- gg + scale_color_viridis(legendtitle, 
+                                   breaks = breaks, labels = breaks, direction = direction, option = colorscale)
   }
   gg <- gg +
     coord_map("lambert", parameters = c(64, 12), ylim = c(58,71.5)) +
