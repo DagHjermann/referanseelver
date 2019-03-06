@@ -1,0 +1,209 @@
+---
+title: "Referanseelver - kart kjemiske parametre"
+author: "DHJ"
+date: "22 februar 2019"
+output: html_document
+---
+
+FIRST SCRIPT: based on averages calculated myself (based on data from script 02)
+
+1)	Figur med to kartpaneler som viser regional fordeling for TotP og TotN (absoluttverdier)
+2)	Figur med tre kartpaneler som viser regional fordeling for pH, ANC og LAl (absoluttverdier)
+3)	Figur med fire kartpaneler som viser regional fordeling av vannregionspesifikke stoffer (absoluttverdier)
+4)	Figur med fire kartpaneler som viser regional fordeling av vannregionspesifikke stoffer (tilstandsklasser)
+5)	Figur med fire kartpaneler som viser regional fordeling av prioriterte stoffer (absoluttverdier)
+6)	Figur med fire kartpaneler som viser regional fordeling av prioritrte stoffer stoffer (tilstandsklasser)
+   
+For kartene med tilstandsklasser kan du godt bruke Â«vanndirektivfargeneÂ» blÃ¥tt, grÃ¸nt, gult, oransje og rÃ¸dt for hhv. kl I, II, III, IV og V.
+
+## Options and libraries  
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+# Set echo=TRUE to show all codes in the 
+```
+
+
+```{r}
+# library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(viridis)
+library(cowplot)     # plot_grid (https://cran.r-project.org/web/packages/cowplot/vignettes/plot_grid.html)
+
+factor2char <- function(var) { levels(var)[var] }
+
+```
+
+## Data  
+```{r}
+df_chem <- readRDS("2018data/02_df_waterchem.rds") 
+
+# df_colors <- read_excel("../Input_data/Fargekoder RGB for tilstandsklassifisering.xlsx", sheet = 2)
+# class_colors <- with(df_colors, rgb(R/255, G/255, B/255))
+
+map_norway <- map_data("world", "Norway")
+# Test colors:
+# pie(rep(1,6), col = class_colors)
+```
+
+
+### Filter data
+  
+3 stations also have 2017 data:  
+```
+Rapportnavn                       2017 2018
+  26. Setninga (Ø)                  24  360
+  31. Døråe (Ø)                    199  363
+  32. Atna03 (Ø)                   175  366
+```
+
+```{r}
+df_chem$NAME <- factor2char(df_chem$NAME)
+df_chem$UNIT <- factor2char(df_chem$UNIT)
+
+df_chem$Year <- lubridate::year(df_chem$SAMPLE_DATE)
+df_chem$Month <- lubridate::month(df_chem$SAMPLE_DATE)
+
+xtabs(~Rapportnavn + Year, df_chem)
+
+nrow(df_chem)
+df_chem <- df_chem %>% filter(Year %in% 2018 & !is.na(Rapportnavn))
+nrow(df_chem)  # 11168
+```
+
+```{r}
+xtabs(~as.character(NAME), df_chem)
+```
+
+## Graphs  
+  
+### QC Nitrogen  
+
+Test graph
+```{r}
+df_chem %>%
+  filter(NAME %in% "Total nitrogen") %>%
+  ggplot(aes(SAMPLE_DATE, VALUE)) +
+    geom_line() + geom_point() +
+    facet_wrap(~Rapportnavn)
+```
+
+TotN of 6400 in Vikka in December, filter out later (when averaging)
+```{r}
+# xtabs(~Rapportnavn, df_chem %>% filter(NAME %in% "Total nitrogen"))
+
+df_chem %>%
+  filter(NAME %in% "Total nitrogen" & Rapportnavn == "29. Vikka (Ø)") %>%
+  select(NAME, UNIT, SAMPLE_DATE, VALUE)
+
+```
+
+### QC phosphorus
+
+Test graph
+```{r}
+df_chem %>%
+  filter(NAME %in% "Total fosfor" & VALUE < 500) %>%
+  ggplot(aes(SAMPLE_DATE, VALUE)) +
+    geom_line() + geom_point() +
+    facet_wrap(~Rapportnavn)
+```
+
+TotN of 570 in Vikka in December, filter out later (when averaging)
+```{r}
+# xtabs(~Rapportnavn, df_chem %>% filter(NAME %in% "Total nitrogen"))
+df_chem %>%
+  filter(NAME %in% "Total fosfor" & Rapportnavn == "29. Vikka (Ø)") %>%
+  select(NAME, UNIT, SAMPLE_DATE, VALUE)
+```
+
+### New test graphs 
+
+N
+```{r}
+df_chem %>%
+  filter(NAME %in% "Total nitrogen" & VALUE < 6000) %>%
+  ggplot(aes(SAMPLE_DATE, VALUE)) +
+    geom_line() + geom_point() +
+    facet_wrap(~Rapportnavn)
+```
+
+
+P
+```{r}
+df_chem %>%
+  filter(NAME %in% "Total fosfor" & VALUE < 500) %>%
+  ggplot(aes(SAMPLE_DATE, VALUE)) +
+    geom_line() + geom_point() +
+    facet_wrap(~Rapportnavn)
+```
+
+
+### Summarize
+```{r}
+df <- df_chem %>%
+  filter(NAME %in% c("Total nitrogen", "Total fosfor") & !is.na(VALUE)) %>%
+  filter(!(NAME %in% "Total nitrogen" & VALUE > 6000)) %>%      # filter out extreme value (see QC above)
+  filter(!(NAME %in% "Total fosfor" & VALUE > 500)) %>%         #    ""
+  group_by(Rapportnavn, Lengdegrad, Breddegrad, NAME) %>%
+  summarize(Value = mean(VALUE))
+
+# xtabs(~Rapportnavn + NAME, df)
+```
+
+
+### Plot  
+P  
+```{r}
+param <- "Total fosfor"
+legendtitle <- paste0(param, "\n(µg/l)")
+
+# Set breaks
+df %>% filter(NAME %in% param) %>% summary(.$Value)
+my_breaks = c(2, 5, 10, 20, 30, 50)
+
+gg1 <- ggplot(df %>% filter(NAME %in% param), aes(Lengdegrad, Breddegrad, fill = Value)) + 
+  annotation_map(map_norway, fill = "grey60") +
+  geom_point(pch = 21, size = 3) +
+  scale_fill_viridis(legendtitle, trans = "log", breaks = my_breaks, labels = my_breaks) +
+  coord_map("lambert", parameters = c(64, 12), ylim = c(58,71.5)) +
+  theme_bw() + 
+  theme(legend.position = c(.95, .05),
+        legend.justification = c("right", "bottom"),
+        legend.box.just = "right",
+        legend.margin = margin(6, 6, 6, 6),
+        axis.title = element_blank())
+gg1
+```
+
+N
+```{r}
+param <- "Total nitrogen"
+legendtitle <- paste0(param, "\n(µg/l)")
+
+# Set breaks
+df %>% filter(NAME %in% param) %>% summary(.$Value)
+my_breaks = c(25, 50, 100, 250, 500, 1000)
+
+gg2 <- ggplot(df %>% filter(NAME %in% param), aes(Lengdegrad, Breddegrad, fill = Value)) + 
+  annotation_map(map_norway, fill = "grey60") +
+  geom_point(pch = 21, size = 3) +
+  scale_fill_viridis(legendtitle, trans = "log", breaks = my_breaks, labels = my_breaks) +
+  coord_map("lambert", parameters = c(64, 12), ylim = c(58,71.5)) +
+  theme_bw() + 
+  theme(legend.position = c(.95, .05),
+        legend.justification = c("right", "bottom"),
+        legend.box.just = "right",
+        legend.margin = margin(6, 6, 6, 6),
+        axis.title = element_blank())
+gg2
+```
+
+
+```{r}
+gg_comb <- plot_grid(gg1, gg2, labels = c('(a)', '(b)'))
+ggsave("Figures_2018data/04_01_P_and_N_abs.png", gg_comb, width = 10, height = 5, dpi = 500)
+
+```
