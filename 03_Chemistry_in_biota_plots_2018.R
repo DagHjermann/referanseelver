@@ -119,6 +119,19 @@ if (save_plots){
   gg1
 }
 
+### Fat
+subset(df_chem, NAME %in% "Fettinnhold") %>% head(2)   # unit MG_P_KG
+dflist <- perform_logtukeytest("Fettinnhold", y_nudge = 0.15)
+gg1 <- make_tukeyplot_ordinary(dflist, ylab = expression(Fettinnhold~(plain("%"))),
+                               ybreaks = seq(2, 12, 2), letterposition = 12)
+gg1
+
+if (save_plots){
+  ggsave("Figures_2018data/03_Tukeyplot_Fett.png", gg1, width = 9, height = 4, dpi = 500)
+} else {
+  gg1
+}
+
 #o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o
 #
 # 3b. Make plots, PFAS ----
