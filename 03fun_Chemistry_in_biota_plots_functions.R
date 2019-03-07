@@ -124,7 +124,8 @@ no_extra_digits <- function(x) sprintf("%g", x)
 # letterposition = some number over 0 gives y position of the "Tukey letters"
 #
 make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
-                               letterposition = 0, linecolors = c("#e31a1c", "#ff7f00")) {
+                               letterposition = 0, include_letters = TRUE, 
+                               linecolors = c("#e31a1c", "#ff7f00")) {
   df1 <- datalist[[1]]
   df2 <- datalist[[2]]
   if (letterposition %in% -1){
@@ -138,7 +139,6 @@ make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreak
   gg <- ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO),
                         shape = as.factor(SAMPLE_NO))) +
     geom_point(size = rel(3)) +
-    geom_text(data = df2, aes(label = .group), color = "black") +
     geom_hline(yintercept = limits, colour = linecolors[1], linetype = 2, size = 1) +
     facet_grid(.~Rapportnavn) +
     scale_shape_manual("Prøvenr", values = c(24,22,25)) +
@@ -151,6 +151,8 @@ make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreak
     theme(legend.position = "none")
   if (!is.na(extra_limit))
     gg <- gg + geom_hline(yintercept = extra_limit, colour = linecolors[2], linetype = 2, size = 1)
+  if (include_letters)
+    gg <- gg + geom_text(data = df2, aes(label = .group), color = "black")
   gg
 }
 
@@ -162,7 +164,8 @@ make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreak
 
 # For PFAS: shape = Prøvevekt instead of shape = SAMPLE_NO
 make_tukeyplot_log_pfas <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
-                                    letterposition = 0, linecolors = c("#e31a1c", "#ff7f00")) {
+                                    letterposition = 0, include_letters = TRUE, 
+                                    linecolors = c("#e31a1c", "#ff7f00")) {
   df1 <- datalist[[1]]
   df2 <- datalist[[2]]
   if (letterposition %in% -1){
@@ -180,7 +183,6 @@ make_tukeyplot_log_pfas <- function(datalist, xlab = "Prøvenummer", ylab = "", y
       Sample_weight >= 0.3 ~ "Prøvevekt >= 0.3 g"))    # filled square = symbol 16
   gg <- ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO))) +
     geom_point(aes(shape = Prøvevekt), size = rel(3)) +       # special for PFAS
-    geom_text(data = df2, aes(label = .group), color = "black") +
     geom_hline(yintercept = limits, colour = linecolors[1], linetype = 2, size = 1) +
     facet_grid(.~Rapportnavn) +
     scale_shape_manual("Prøvevekt", values = c(4,16,0)) +   # see symbol overview above
@@ -193,12 +195,14 @@ make_tukeyplot_log_pfas <- function(datalist, xlab = "Prøvenummer", ylab = "", y
     theme(legend.position = "none")
   if (!is.na(extra_limit))
     gg <- gg + geom_hline(yintercept = extra_limit, colour = linecolors[2], linetype = 2, size = 1)
+  if (include_letters)
+    gg <- gg + geom_text(data = df2, aes(label = .group), color = "black")
   gg
 }
 
 
 make_tukeyplot_ordinary <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
-                                    letterposition = 0) {
+                                    letterposition = 0, include_letters = TRUE) {
   df1 <- datalist[[1]]
   df2 <- datalist[[2]]
   if (letterposition %in% -1){
@@ -209,10 +213,9 @@ make_tukeyplot_ordinary <- function(datalist, xlab = "Prøvenummer", ylab = "", y
   limits <- datalist[[3]]$EQS
   if (!is.na(extra_limit))
     limits <- c(limits, extra_limit)
-  ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO), 
+  gg <- ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO), 
                   shape = as.factor(SAMPLE_NO))) +
     geom_point(size = rel(3)) +
-    geom_text(data = df2, aes(label = .group), color = "black") +
     geom_hline(yintercept = limits, color = "red", linetype = 2) +
     facet_grid(.~Rapportnavn) +
     scale_shape_manual("Prøvenr", values = c(24,22,25)) +   # see symbol overview above
@@ -223,6 +226,9 @@ make_tukeyplot_ordinary <- function(datalist, xlab = "Prøvenummer", ylab = "", y
     theme_bw() +
     theme(strip.text=element_text(angle=90, hjust=0.5, vjust=0), strip.background = element_rect(fill = "white")) +
     theme(legend.position = "none")
+  if (include_letters)
+    gg <- gg + geom_text(data = df2, aes(label = .group), color = "black")
+  gg
 }
 
 
@@ -253,4 +259,5 @@ make_tukeyplot_pah_log <- function(datalist, xlab = "Prøvenummer", ylab = "", yb
     gg <- gg + geom_hline(yintercept = extra_limit, colour = linecolors[2], linetype = 2, size = 1)
   gg
 }
+
 
