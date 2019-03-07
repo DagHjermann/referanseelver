@@ -123,7 +123,7 @@ if (save_plots){
 subset(df_chem, NAME %in% "Fettinnhold") %>% head(2)   # unit MG_P_KG
 dflist <- perform_logtukeytest("Fettinnhold", y_nudge = 0.15)
 gg1 <- make_tukeyplot_ordinary(dflist, ylab = expression(Fettinnhold~(plain("%"))),
-                               ybreaks = seq(2, 12, 2), letterposition = 12)
+                               ybreaks = seq(2, 12, 2), include_letters = FALSE)
 gg1
 
 if (save_plots){
