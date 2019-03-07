@@ -49,6 +49,7 @@ make_tukeydf <- function(data, y_nudge = 1){
 # debugonce(make_tukeydf)
 # test2 <- make_tukeydf(test)
 
+# NOTE: deprecated! Use instead make_tukeyplot_ordinary() for a Tukey plot on "non-log" scale
 make_tukeyplot <- function(df1, df2, xlab = "Prøvenummer", ylab = "") {
   ggplot(df1, aes(SAMPLE_NO, VALUE, colour = as.factor(SAMPLE_NO))) + 
     geom_point() +
@@ -60,8 +61,9 @@ make_tukeyplot <- function(df1, df2, xlab = "Prøvenummer", ylab = "") {
     theme_bw() +
     theme(strip.text=element_text(angle=90, hjust=0.5, vjust=0), strip.background = element_rect(fill = "white"))
 }
-# test3 <- make_tukeyplot(test, test2, ylab = "Fettinnhold (%)")
-# test3
+# df_select <- subset(df_chem, NAME %in% "Fettinnhold")
+# tukeydf <- make_tukeydf(df_select)
+# gg1 <- make_tukeyplot(df_select, tukeydf)
 
 plot_tukey <- function(param, ylab, y_nudge = 1, data = df_chem){
   df1 <- subset(data, NAME %in% param)
@@ -70,6 +72,7 @@ plot_tukey <- function(param, ylab, y_nudge = 1, data = df_chem){
 }
 # test
 # plot_tukey("Fettinnhold", "Fettinnhold (%)")
+
 
 
 # Analyse and plot log-values
@@ -151,6 +154,7 @@ make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreak
   gg
 }
 
+
 # make_tukeyplot_log(testlist, ylab = "Sum PCB 7", ybreaks = c(0.0002, 0.001, 0.01))
 # make_tukeyplot_log(testlist, ylab = "Sum PCB 7", ybreaks = c(0.0002, 0.001, 0.01), letterposition = -1)
 # make_tukeyplot_log(testlist, ylab = "Sum PCB 7", ybreaks = c(0.0002, 0.001, 0.01), letterposition = 0.05)
@@ -193,19 +197,26 @@ make_tukeyplot_log_pfas <- function(datalist, xlab = "Prøvenummer", ylab = "", y
 }
 
 
-make_tukeyplot_ordinary <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA) {
+make_tukeyplot_ordinary <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
+                                    letterposition = 0) {
   df1 <- datalist[[1]]
   df2 <- datalist[[2]]
+  if (letterposition %in% -1){
+    df2$VALUE <- max(df2$VALUE, na.rm = TRUE)
+  } else if (letterposition > 0) {
+    df2$VALUE <- letterposition
+  }
   limits <- datalist[[3]]$EQS
   if (!is.na(extra_limit))
     limits <- c(limits, extra_limit)
-  ggplot(df1, aes(SAMPLE_NO, VALUE, colour = as.factor(SAMPLE_NO), 
+  ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO), 
                   shape = as.factor(SAMPLE_NO))) +
-    geom_point() +
+    geom_point(size = rel(3)) +
     geom_text(data = df2, aes(label = .group), color = "black") +
     geom_hline(yintercept = limits, color = "red", linetype = 2) +
     facet_grid(.~Rapportnavn) +
-    scale_color_manual("Prøvenr", values = c("black", "grey50", "white")) +
+    scale_shape_manual("Prøvenr", values = c(24,22,25)) +   # see symbol overview above
+    scale_fill_manual("Prøvenr", values = c('#c51b8a','#fa9fb5','#fde0dd')) +
     scale_x_continuous(breaks = c(1,2,3), limits = c(0.5,3.5)) +
     scale_y_continuous(breaks = ybreaks) +
     labs(x = xlab, y = ylab) +
@@ -213,6 +224,7 @@ make_tukeyplot_ordinary <- function(datalist, xlab = "Prøvenummer", ylab = "", y
     theme(strip.text=element_text(angle=90, hjust=0.5, vjust=0), strip.background = element_rect(fill = "white")) +
     theme(legend.position = "none")
 }
+
 
 
 make_tukeyplot_pah_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
