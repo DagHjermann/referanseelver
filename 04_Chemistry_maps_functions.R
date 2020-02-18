@@ -39,13 +39,17 @@ plot_map_abs_OLD <- function(param, breaks, log = TRUE, direction = 1, data = df
       geom_point(pch = 21, size = 3)
   }
   if (!yearshape & log){
-    gg <- gg + scale_fill_viridis(legendtitle, trans = "log", breaks = breaks, labels = breaks, direction = direction)
+    gg <- gg + scale_fill_viridis(legendtitle, trans = "log", breaks = breaks, labels = breaks, 
+                                  direction = direction, limits = range(breaks))
   } else if (!yearshape & !log)  {
-    gg <- gg + scale_fill_viridis(legendtitle, breaks = breaks, labels = breaks, direction = direction)
+    gg <- gg + scale_fill_viridis(legendtitle, breaks = breaks, labels = breaks, 
+                                  direction = direction, limits = range(breaks))
   } else if (yearshape & log){
-      gg <- gg + scale_color_viridis(legendtitle, trans = "log", breaks = breaks, labels = breaks, direction = direction)
+      gg <- gg + scale_color_viridis(legendtitle, trans = "log", breaks = breaks, labels = breaks, 
+                                     direction = direction, limits = range(breaks))
   } else if (yearshape & !log)  {
-    gg <- gg + scale_color_viridis(legendtitle, breaks = breaks, labels = breaks, direction = direction)
+    gg <- gg + scale_color_viridis(legendtitle, breaks = breaks, labels = breaks, 
+                                   direction = direction, limits = range(breaks))
   }
   gg <- gg +
     coord_map("lambert", parameters = c(64, 12), ylim = c(58,71.5)) +
@@ -61,8 +65,15 @@ plot_map_abs_OLD <- function(param, breaks, log = TRUE, direction = 1, data = df
 
 
 
-plot_map_abs <- function(param, breaks, log = TRUE, direction = 1, data = df_chem, yearshape = FALSE, 
-                         colorscale = "magma"){
+# high_on_top:  if TRUE, high values are plotted last and on top of other points, 
+#   if FALSE, low values are plotted on top. If NA, th data is not sorted. 
+
+plot_map_abs <- function(param, breaks, log = TRUE, 
+                         data = df_chem, 
+                         yearshape = FALSE,      # if points are separated by Year
+                         colorscale = "magma",   # viridis color scale
+                         direction = 1,          # direction of color scale 
+                         high_on_top = TRUE){    # if TRUE, high values are on top of other points
   legendtitle <- sub("-", "\n", param)
   if (yearshape){
     df <- data[,c("Lengdegrad", "Breddegrad", "Year", param)]
@@ -71,9 +82,10 @@ plot_map_abs <- function(param, breaks, log = TRUE, direction = 1, data = df_che
   }
   
   df$Value <- as.data.frame(df)[,param]
-  if (direction == 1){
+
+  if (high_on_top & !is.na(high_on_top)){
     df <- df %>% arrange(Value)
-  } else {
+  } else if (!high_on_top & !is.na(high_on_top)){
     df <- df %>% arrange(desc(Value))
   }
   
@@ -92,13 +104,15 @@ plot_map_abs <- function(param, breaks, log = TRUE, direction = 1, data = df_che
   }
   if (log){
     gg <- gg + scale_color_viridis(legendtitle, trans = "log", 
-                                   breaks = breaks, labels = breaks, direction = direction, option = colorscale)
+                                   breaks = breaks, labels = breaks, direction = direction, 
+                                   option = colorscale, limits = range(breaks))
   } else  {
     gg <- gg + scale_color_viridis(legendtitle, 
-                                   breaks = breaks, labels = breaks, direction = direction, option = colorscale)
+                                   breaks = breaks, labels = breaks, direction = direction, 
+                                   option = colorscale, limits = range(breaks))
   }
   gg <- gg +
-    coord_map("lambert", parameters = c(64, 12), ylim = c(58,71.5)) +
+    coord_map("lambert", parameters = c(64, 12), xlim = c(5, 27), ylim = c(58,71.5)) +
     theme_bw() + 
     theme(legend.position = c(.95, .05),
           legend.justification = c("right", "bottom"),

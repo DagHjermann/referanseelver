@@ -78,6 +78,10 @@ plot_tukey <- function(param, ylab, y_nudge = 1, data = df_chem){
 # Analyse and plot log-values
 # Log-transforms before running Tukey, then back-transforms
 # Also plots a summery of data, plus the EQS (for setting y axis breaks later)
+#
+# Input: data file ("data") must contain the variables VALUE, NAME, Rapportnavn, SAMPLE_NO
+# Also, the name of the contaminant must be the same in 'data' and 'eqsdata'
+#
 perform_logtukeytest <- function(param, print = TRUE, y_nudge = 0.1, A = 0, data = df_chem, eqsdata = df_eqs){
   df1 <- subset(data, NAME %in% param)
   df1 <- subset(df1, !is.na(VALUE))
@@ -163,6 +167,9 @@ make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreak
 # make_tukeyplot_log(testlist, ylab = "Sum PCB 7", ybreaks = c(0.0002, 0.001, 0.01), extra_limit = 0.001)
 
 # For PFAS: shape = Prøvevekt instead of shape = SAMPLE_NO
+#
+# Must contain variable Sample_weight (in addition to VALUE, NAME, Rapportnavn)
+#
 make_tukeyplot_log_pfas <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
                                     letterposition = 0, include_letters = TRUE, 
                                     linecolors = c("#e31a1c", "#ff7f00")) {
