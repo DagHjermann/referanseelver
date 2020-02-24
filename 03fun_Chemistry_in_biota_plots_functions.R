@@ -127,6 +127,12 @@ no_extra_digits <- function(x) sprintf("%g", x)
 # letterposition = -1 prints "Tukey letters" above the overall highest point
 # letterposition = some number over 0 gives y position of the "Tukey letters"
 #
+
+make_scale_from_log <- function(x){
+  seq(10^x, 9*(10^x), 10^x)
+}
+# make_scale_from_log(2)
+
 make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreaks = NULL, extra_limit = NA,
                                letterposition = 0, include_letters = TRUE, 
                                linecolors = c("#e31a1c", "#ff7f00")) {
@@ -138,6 +144,9 @@ make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreak
     df2$VALUE <- letterposition
   }
   limits <- datalist[[3]]$EQS
+  logscales <- ybreaks %>% range() %>% log10() %>% floor()
+  minor_breaks <- seq(logscales[1], logscales[2], 1) %>%
+    purrr::map(make_scale_from_log) %>% unlist()
   #if (!is.na(extra_limit))
   #  limits <- c(limits, extra_limit)
   gg <- ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO),
@@ -148,7 +157,10 @@ make_tukeyplot_log <- function(datalist, xlab = "Prøvenummer", ylab = "", ybreak
     scale_shape_manual("Prøvenr", values = c(24,22,25)) +
     scale_fill_manual("Prøvenr", values = c('#c51b8a','#fa9fb5','#fde0dd')) +
     scale_x_continuous(breaks = c(1,2,3), limits = c(0.5,3.5)) +
-    scale_y_log10(breaks = ybreaks, labels = no_extra_digits) +
+    scale_y_log10(breaks = ybreaks, 
+                  labels = no_extra_digits,
+                  minor_breaks = minor_breaks
+                  ) +
     labs(x = xlab, y = ylab) +
     theme_bw() +
     theme(strip.text=element_text(angle=90, hjust=0.5, vjust=0), strip.background = element_rect(fill = "white")) +
