@@ -75,6 +75,10 @@ if (FALSE){
   
   }
 
+#
+# NEW DATA
+#
+
 df_eqs <- read_excel("Input_2018data/EQS data med navn - korrigert.xlsx")
 df_eqs <- df_eqs[,1:7]
 df_eqs <- rename(df_eqs, EQS = `EQS (µg/kg)`)
@@ -92,7 +96,7 @@ df_eqs$EQS[sel] <- 0.6                         # Update PCB EQS from 1 to 0.6
 #o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o
 
 save_plots <- TRUE
-save_plots <- FALSE
+# save_plots <- FALSE
 
 #o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o
 #
@@ -105,7 +109,7 @@ save_plots <- FALSE
 
 fn <- "Input_2019data/JMP/052b PBDE split.xlsx"
 
-name <- "BDE6"  # this is not the name in data, but the name in EQS file
+name <- "BDE6S"  # this is not the name in data, but the name in EQS file
 dflist <- readxl::read_excel(fn) %>%
   rename(VALUE = sumBDE_6, SAMPLE_NO = Stasjonsnr) %>%
   mutate(NAME = name) %>%
@@ -173,14 +177,13 @@ fn <- "Input_2019data/JMP/050 fisk fettprosent.xlsx"
 # dflist <- perform_logtukeytest("Fettinnhold", y_nudge = 0.15)
 
 name <- "Fettinnhold"  # this is not the name in data, but the name in EQS file
-dflist <- readxl::read_excel(fn) %>%
+dflist <- readxl::read_excel(fn) %>% View()
   rename(NAME = Analyse, VALUE = `Result halfLOD`, SAMPLE_NO = `Stasjonsnr`) %>%
-  mutate(NAME = ) %>%
+  mutate(NAME = name) %>%
   perform_logtukeytest(name, data = .)
 
-
 gg1 <- make_tukeyplot_ordinary(dflist, ylab = expression(Fettinnhold~(plain("%"))),
-                               ybreaks = seq(2, 20, 2), include_letters = FALSE)
+                               ybreaks = seq(0, 18, 2), include_letters = FALSE)
 
 if (save_plots){
   ggsave("Figures_2019data/03_Tukeyplot_Fett.png", gg1, width = 9, height = 4, dpi = 500)
@@ -218,7 +221,7 @@ fn <- "Input_2019data/JMP/053b PFOS_PFOA split.xlsx"
 # dflist <- perform_logtukeytest("Perfluoroktylsulfonat (PFOS)", y_nudge = 0.15, data = df_chem_pfas)
 
 name <- "Perfluoroktylsulfonat (PFOS)"
-dflist <- readxl::read_excel(fn) %>%
+dflist <- readxl::read_excel(fn) %>% # names()
   rename(VALUE = `Result halfLOD Perfluoroktylsulfonat (PFOS)`, 
          Sample_weight = `Lever (g)`,
          SAMPLE_NO = `Stasjonsnr`) %>%
@@ -226,8 +229,26 @@ dflist <- readxl::read_excel(fn) %>%
   perform_logtukeytest(name, data = ., y_nudge = 0.15)
 
 
+#
+# 1. "Special PFAS plot":
+#
+# Prøvevekt < 0.2 g"    = cross
+# Prøvevekt 0.2 - 0.3 g = open square
+# Prøvevekt >= 0.3 g    = filled square
 gg1 <- make_tukeyplot_log_pfas(dflist, ylab = expression(Perfluoroktylsulfonat~(PFOS)~(mu*g/kg~w.w.)), 
                                ybreaks = c(0.5, 0.75, 1, 5, 10), letterposition = 12)
+if (save_plots){
+  ggsave("Figures_2019data/03_Tukeyplot_PFOS_sampleweight.png", gg1, width = 9, height = 4, dpi = 500)
+} else {
+  gg1
+}
+
+#
+# 2. "Ordinary plot":
+#
+gg1 <- make_tukeyplot_log(dflist, ylab = expression(Perfluoroktylsulfonat~(PFOS)~(mu*g/kg~w.w.)), 
+                               ybreaks = c(0.5, 0.75, 1, 5, 10), letterposition = 12)
+
 if (save_plots){
   ggsave("Figures_2019data/03_Tukeyplot_PFOS.png", gg1, width = 9, height = 4, dpi = 500)
 } else {
@@ -239,37 +260,42 @@ if (save_plots){
 # PFOA
 # Empty column in data ???
 #
-name <- "Perfluoroktansyre (PFOA)"
-dflist <- readxl::read_excel(fn) %>% 
-  rename(VALUE = `Result halfLOD Perfluoroktansyre (PFOA)`, 
-         Sample_weight = `Lever (g)`,
-         SAMPLE_NO = `Stasjonsnr`) %>% 
-  mutate(NAME = name) %>% select(VALUE, NAME, Rapportnavn) %>% View()
+if (FALSE){
+  name <- "Perfluoroktansyre (PFOA)"
+  dflist <- readxl::read_excel(fn) %>% 
+    rename(VALUE = `Result halfLOD Perfluoroktansyre (PFOA)`, 
+           Sample_weight = `Lever (g)`,
+           SAMPLE_NO = `Stasjonsnr`) %>% 
+    mutate(NAME = name) %>% select(VALUE, NAME, Rapportnavn) %>% View()
   perform_logtukeytest(name, data = ., y_nudge = 0.15)
-
-
-dflist <- perform_logtukeytest("Perfluoroktansyre (PFOA)", y_nudge = 0.15, data = df_chem_pfas)
-gg1 <- make_tukeyplot_log_pfas(dflist, ylab = expression(Perfluoroktansyre~(PFOA)~(mu*g/kg~w.w.)), 
-                               ybreaks = c(0.5, 0.75, 1, 5, 10, 50, 91), letterposition = 50)
-if (save_plots){
-  ggsave("Figures_2019data/03_Tukeyplot_PFOA.png", gg1, width = 9, height = 4, dpi = 500)
-} else {
-  gg1
+  
+  
+  dflist <- perform_logtukeytest("Perfluoroktansyre (PFOA)", y_nudge = 0.15, data = df_chem_pfas)
+  gg1 <- make_tukeyplot_log_pfas(dflist, ylab = expression(Perfluoroktansyre~(PFOA)~(mu*g/kg~w.w.)), 
+                                 ybreaks = c(0.5, 0.75, 1, 5, 10, 50, 91), letterposition = 50)
+  if (save_plots){
+    ggsave("Figures_2019data/03_Tukeyplot_PFOA.png", gg1, width = 9, height = 4, dpi = 500)
+  } else {
+    gg1
+  }
 }
 
 
 #
 # Sum PFOS + PFOA , meaningless when no PFOA
 #
-dflist <- perform_logtukeytest("Sum_PFAS", y_nudge = 0.15, data = df_chem_pfas)
-gg1 <- make_tukeyplot_log_pfas(dflist, ylab = expression(Sum~PFAS~(mu*g/kg~w.w.)), 
-                               ybreaks = c(0.5, 0.75, 1, 5, 10, 50, 62), letterposition = 90)
-if (save_plots){
-  ggsave("Figures_2019data/03_Tukeyplot_PFASsum.png", gg1, width = 9, height = 4, dpi = 500)
-} else {
-  gg1
+if (FALSE){
+  
+  dflist <- perform_logtukeytest("Sum_PFAS", y_nudge = 0.15, data = df_chem_pfas)
+  gg1 <- make_tukeyplot_log_pfas(dflist, ylab = expression(Sum~PFAS~(mu*g/kg~w.w.)), 
+                                 ybreaks = c(0.5, 0.75, 1, 5, 10, 50, 62), letterposition = 90)
+  if (save_plots){
+    ggsave("Figures_2019data/03_Tukeyplot_PFASsum.png", gg1, width = 9, height = 4, dpi = 500)
+  } else {
+    gg1
+  }
+  
 }
-
 
 
 
@@ -349,32 +375,34 @@ if (save_plots){
 # Doesn't work because there are data from only one station.....
 # dflist <- perform_logtukeytest("SCCP eksl. LOQ", y_nudge = 0.4, data = df_all)
 
-
-gg <- ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO))) +
-  geom_point(aes(shape = Prøvevekt), size = rel(3)) +       # special for PFAS
-  geom_hline(yintercept = limits, colour = linecolors[1], linetype = 2, size = 1) +
-  facet_grid(.~Rapportnavn) +
-  scale_shape_manual("Prøvevekt", values = c(4,16,0)) +   # see symbol overview above
-  scale_fill_manual("Prøvenr", values = c('#c51b8a','#fa9fb5','#fde0dd')) +
-  scale_x_continuous(breaks = c(1,2,3), limits = c(0.5,3.5)) +
-  scale_y_log10(breaks = ybreaks, labels = no_extra_digits) +
-  labs(x = xlab, y = ylab) +
-  theme_bw() +
-  theme(strip.text=element_text(angle=90, hjust=0.5, vjust=0), strip.background = element_rect(fill = "white")) +
-  theme(legend.position = "none")
-
-
-
-gg <- make_tukeyplot_log(dflist, ylab = expression(SCCP~uten~LOQ~(mu*g/kg~w.w.)), 
-                         ybreaks = c(1, 2, 3, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 6000), 
-                         letterposition = -1)
-gg
-if (save_plots){
-  ggsave("Figures_2019data/03_Tukeyplot_SCCP.png", gg, width = 9, height = 4, dpi = 500)
-} else {
+if (FALSE){
+  
+  gg <- ggplot(df1, aes(SAMPLE_NO, VALUE, fill = as.factor(SAMPLE_NO))) +
+    geom_point(aes(shape = Prøvevekt), size = rel(3)) +       # special for PFAS
+    geom_hline(yintercept = limits, colour = linecolors[1], linetype = 2, size = 1) +
+    facet_grid(.~Rapportnavn) +
+    scale_shape_manual("Prøvevekt", values = c(4,16,0)) +   # see symbol overview above
+    scale_fill_manual("Prøvenr", values = c('#c51b8a','#fa9fb5','#fde0dd')) +
+    scale_x_continuous(breaks = c(1,2,3), limits = c(0.5,3.5)) +
+    scale_y_log10(breaks = ybreaks, labels = no_extra_digits) +
+    labs(x = xlab, y = ylab) +
+    theme_bw() +
+    theme(strip.text=element_text(angle=90, hjust=0.5, vjust=0), strip.background = element_rect(fill = "white")) +
+    theme(legend.position = "none")
+  
+  
+  
+  gg <- make_tukeyplot_log(dflist, ylab = expression(SCCP~uten~LOQ~(mu*g/kg~w.w.)), 
+                           ybreaks = c(1, 2, 3, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 6000), 
+                           letterposition = -1)
   gg
+  if (save_plots){
+    ggsave("Figures_2019data/03_Tukeyplot_SCCP.png", gg, width = 9, height = 4, dpi = 500)
+  } else {
+    gg
+  }
+  
 }
-
 
 #o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o#o
 #
