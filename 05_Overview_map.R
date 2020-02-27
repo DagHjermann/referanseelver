@@ -110,14 +110,27 @@ df_stations$Kategori <- factor(df_stations$Kategori,
                                levels = c("Oddetallsår, med miljøgifter", "Oddetallsår, uten miljøgifter", 
                                           "Partallsår, med miljøgifter", "Partallsår, uten miljøgifter",
                                           "Hvert år, med miljøgifter", "Hvert år, uten miljøgifter"))
-table(df_stations$Kategori)
+
+xtabs(~Kategori + addNA(Prøvetakingsår), df_stations)
+
+#
+# Save file ----
+# 
+# NOTE: this file was updated and subsequently put in 'Input_2019data'
+#       That file is the one we use in the update of this script,
+#       script 15 (used for 2019 report)
+#
+# openxlsx::write.xlsx(df_stations, "Referanseelver_stasjoner_per_2019.xlsx")
 
 
-df <- df_stations %>% filter(Prøvetakingsår %in% c("2017","2018","Hvert år"))
-x <- as.numeric(df$Prøvetakingsår %in% "Hvert år")
-df <- df[order(x),]
-View(df)
+#
+# Plot ----
+#
 
+# Put 'Hvert år' last so they end up on top in map
+df <- df_stations %>%
+  arrange(Prøvetakingsår %in% "Hvert år")
+# View(df)
 
 gg <- ggplot(df,              
              aes(Lon, Lat, shape = Kategori, fill = Kategori, color = Kategori)) + 
