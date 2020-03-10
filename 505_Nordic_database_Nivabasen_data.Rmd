@@ -1,0 +1,306 @@
+---
+title: "504_Data_2017_2018_Nivabasen"
+author: "DHJ"
+date: "6 3 2020"
+output: html_document
+---
+
+Gets data from Nivabasen for 2017-2018  
+- Results are used by script 501, 502 and 504
+
+## 1. Libraries
+```{r}
+
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(niRvana)
+
+```
+
+### Password
+```{r}
+
+set_credentials()
+
+```
+
+## 2. Projects  
+```{r}
+#
+# Get projects ----
+#
+
+df_projects <- get_projects() 
+# Add O-numbers
+df_o_numbers <- get_nivabase_data("select PROJECT_ID, O_NUMBER from NIVADATABASE.PROJECTS_O_NUMBERS")
+df_projects <- left_join(df_projects, df_o_numbers)
+
+# Pick projects by O-number
+df_projects_sel <- df_projects %>% 
+  filter(O_NUMBER %in% c("17370"))
+
+
+```
+
+## 3. Stations
+```{r}
+
+proj_ids <-df_projects_sel$PROJECT_ID
+
+# Stations
+df_stations <- get_nivabase_selection("PROJECT_ID, STATION_ID, STATION_CODE, STATION_NAME", 
+                                      "PROJECTS_STATIONS",
+                                      "PROJECT_ID",
+                                      proj_ids)   
+
+# Add GEOM_REF_ID
+df_stations2 <- get_nivabase_selection("STATION_ID, GEOM_REF_ID", 
+                                      "STATIONS",
+                                      "STATION_ID",
+                                      df_stations$STATION_ID)   
+
+df_stations <- df_stations %>%
+  left_join(df_stations2, by = "STATION_ID")
+
+nrow(df_stations)
+
+```
+
+### Add coordinates  
+```{r}
+
+df_coor <- get_nivabase_selection("SAMPLE_POINT_ID, LONGITUDE, LATITUDE",
+                                  "SAMPLE_POINTS",
+                                  "SAMPLE_POINT_ID",
+                                  df_stations$GEOM_REF_ID, 
+                                  owner = "NIVA_GEOMETRY")
+
+df_stations <- df_stations %>%
+  left_join(df_coor, by = c("GEOM_REF_ID" = "SAMPLE_POINT_ID"))
+
+```
+
+
+### Save
+```{r}
+
+write.csv(df_stations, "Nordisk_database_data/Stations - 2017-18.csv")
+
+```
+
+
+## 4. Diatom algae / begroingsalger  
+
+### Get data  
+```{r}
+
+df_beg_samples <- get_nivabase_selection("SAMPLE_ID, STATION_ID, SAMPLE_DATE",
+                                         "BEGALG_SAMPLES",
+                                         "STATION_ID",
+                                         df_stations$STATION_ID)
+nrow(df_beg_samples)  # 394
+
+df_beg_values <- get_nivabase_selection("SAMPLE_ID, PARAMETER_ID, VALUE",
+                                         "BEGALG_PARAMETER_VALUES",
+                                         "SAMPLE_ID",
+                                         df_beg_samples$SAMPLE_ID)
+nrow(df_beg_values)  # 433
+
+df_beg_values_par <- get_nivabase_selection("PARAMETER_ID, NAME, DESCRIPTION, UNIT",
+                                            "BEGALG_PARAMETER_DEFINITIONS",
+                                            "PARAMETER_ID",
+                                            unique(df_beg_values$PARAMETER_ID))
+
+nrow(df_beg_values_par)  # 6
+
+#
+# Put all togethr by adding columns to df_beg_values
+#
+
+nrow(df_beg_values)
+df_beg_values <- df_beg_values %>%
+  left_join(df_beg_samples) %>%
+  left_join(df_stations) %>%
+  left_join(df_beg_values_par %>% select(PARAMETER_ID, NAME))
+
+nrow(df_beg_values)
+
+```
+### Check
+```{r}
+
+table(df_beg_values$NAME)
+
+if (FALSE){
+  df_beg_values %>%
+    xtabs(~STATION_CODE + year(SAMPLE_DATE), .)
+  
+  df_beg_values %>%
+    xtabs(~STATION_CODE + NAME, .)
+}
+
+```
+
+### Check  
+```{r}
+
+df_beg_values %>%
+  arrange(STATION_CODE, SAMPLE_DATE, NAME) %>%
+  select(STATION_ID, STATION_CODE, SAMPLE_DATE, NAME, VALUE) %>%
+  head(20)
+
+```
+
+### Save  
+```{r}
+
+write.csv(df_beg_values, "Nordisk_database_data/Begroingsalger PIT og AIP - 2017-18.csv")
+
+```
+
+
+## 5. Bottom fauna / bunnfauna (bunndyr = BD)  
+
+### Get data  
+```{r}
+
+df_bd_samples <- get_nivabase_selection("SAMPLE_ID, STATION_ID, SAMPLE_DATE, SUBSAMPLE",
+                                        "BD_SAMPLES",
+                                        "STATION_ID",
+                                        df_stations$STATION_ID)
+nrow(df_bd_samples)  # 154
+
+
+df_bd_counts <- get_nivabase_selection("SAMPLE_ID, TAXONOMY_CODE_ID, VALUE",
+                                       "BD_COUNTS",
+                                       "SAMPLE_ID",
+                                       df_bd_samples$SAMPLE_ID)
+nrow(df_bd_counts)  # 3467
+
+
+df_taxcodes <- get_nivabase_selection("TAXONOMY_CODE_ID, NAME",
+                                      "TAXONOMY_CODES",
+                                      "TAXONOMY_CODE_ID",
+                                      unique(df_bd_counts$TAXONOMY_CODE_ID))
+
+nrow(df_taxcodes)  # 203
+
+
+
+#
+# Put all togethr by adding columns to df_beg_values
+#
+
+nrow(df_bd_counts)
+
+df_bd_counts <- df_bd_counts %>%
+  left_join(df_bd_samples) %>%
+  left_join(df_stations) %>%
+  left_join(df_taxcodes)
+
+nrow(df_bd_counts)  # 3467
+
+```
+
+### Check
+```{r}
+
+df_bd_counts %>%
+  arrange(STATION_CODE, SAMPLE_DATE, NAME) %>%
+  select(STATION_ID, STATION_CODE, SAMPLE_DATE, NAME, VALUE) %>%
+  head(20)  
+
+```
+
+
+### Save  
+
+```{r}
+
+write.csv(df_bd_counts, "Nordisk_database_data/Bunnfauna - 2017-18.csv")
+
+```
+
+
+## 6. Water chemistry   
+
+### Get data  
+```{r}
+
+df_samples <- get_nivabase_selection("WATER_SAMPLE_ID, STATION_ID, SAMPLE_DATE, DEPTH1, DEPTH2",
+                                        "WATER_SAMPLES",
+                                        "STATION_ID",
+                                        df_stations$STATION_ID)
+nrow(df_samples)  # 1221
+
+
+df_values <- get_nivabase_selection("WATER_SAMPLE_ID, METHOD_ID, VALUE, FLAG1",
+                                    "WATER_CHEMISTRY_VALUES",
+                                    "WATER_SAMPLE_ID",
+                                    df_samples$WATER_SAMPLE_ID)
+nrow(df_values)  # 36455
+
+
+df_methods <- get_nivabase_selection("METHOD_ID, NAME, UNIT",
+                                     "METHOD_DEFINITIONS",
+                                     "METHOD_ID",
+                                     unique(df_values$METHOD_ID))
+
+nrow(df_methods)  # 72
+
+df_parmet <- get_nivabase_selection("METHOD_ID, PARAMETER_ID, CONVERSION_FACTOR",
+                                    "WC_PARAMETERS_METHODS",
+                                    "METHOD_ID",
+                                    unique(df_values$METHOD_ID))
+
+nrow(df_parmet)  # 72
+
+df_params <- get_nivabase_selection("PARAMETER_ID, NAME, UNIT",
+                                    "WC_PARAMETER_DEFINITIONS",
+                                    "PARAMETER_ID",
+                                    unique(df_parmet$PARAMETER_ID))
+
+nrow(df_params)  # 39
+
+
+
+#
+# Put all togethr by adding columns to df_beg_values
+#
+
+nrow(df_values)
+
+df_values <- df_values %>%
+  left_join(df_samples, by = "WATER_SAMPLE_ID") %>%
+  left_join(df_stations, by = "STATION_ID") %>%
+  left_join(df_methods, by = "METHOD_ID") %>%
+  left_join(df_parmet, by = "METHOD_ID") %>%
+  left_join(df_params %>% rename(Parameter = NAME, UNIT2 = UNIT), 
+            by = "PARAMETER_ID") 
+
+nrow(df_values)  # 36455
+
+```
+
+### Check
+```{r}
+
+df_values %>%
+  count(NAME, Parameter, UNIT, UNIT2)
+
+```
+
+
+### Save
+
+```{r}
+
+write.csv(df_values, "Nordisk_database_data/Water chemistry - 2017-18.csv")
+
+```
+
+

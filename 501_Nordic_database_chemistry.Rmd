@@ -1,0 +1,176 @@
+---
+title: "501: Nordic database submission - water chemistry"
+author: "DHJ"
+date: "5 3 2020"
+output: html_document
+---
+
+## 1. Libraries
+```{r}
+
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+
+source("501_Nordic_database_chemistry_functions.R", encoding = "UTF-8")
+
+```
+
+## 2. Read 2019 data  
+
+```{r}
+
+df_stat <- read_excel("Nordisk_database_data/Stations and catchment data all rivers.xlsx")
+head(df_stat)
+
+# dat <- read_excel("Nordisk_database_data/Resultater 2019.xlsx", sheet = "Ordnet")
+
+# debugonce(AqMexport_read_waterchemistry)
+dat <- AqMexport_read_waterchemistry("Nordisk_database_data/Resultater 2019.xlsx",
+                                     sheetname = "Fra AM",
+                                     remove_duplicates  = FALSE)
+str(dat)
+str(dat_units)
+
+# Get units
+dat_units <- read_excel("Nordisk_database_data/Resultater 2019.xlsx",
+                        sheet = "Fra AM", range = "G1:AT2", col_types = "text") %>%
+  as.matrix() %>% t() %>% as.data.frame(stringsAsFactors = FALSE)
+dat_units$Variable <- rownames(dat_units)
+names(dat_units)[1] <- "Unit"
+# dat_units
+
+# Add units to data
+dat <- dat %>%
+  left_join(dat_units, by = "Variable")
+
+```
+
+## 3. Fix data for table  
+
+### Check parameters/units used last time  
+```{r}
+
+dat_param_select <- read_excel("Nordisk_database_data/Chemistry_parameters_to_deliver.xlsx")
+
+nrow(dat)
+dat <- dat %>%
+  left_join(dat_param_select %>% mutate(Include = TRUE), by = c("Variable", "Unit"))
+nrow(dat)
+
+# Check - all with Include = FALSE will be dropped
+dat %>%
+  count(Include, Variable, Unit)
+
+```
+
+### Make data set for export  
+```{r}
+
+data_chem_2019 <- dat %>%
+  filter(Include) %>%
+  rename(`Unique site ID` = StationId,
+         Parameter = Variable) %>%
+  mutate(Year = substr(SampleDate, 7, 10) %>% as.numeric(),
+         Month = substr(SampleDate, 4, 5) %>% as.numeric(),
+         Day = substr(SampleDate, 1, 2) %>% as.numeric(),
+         `Sample depth m` = 0) %>%
+  mutate(Value = ifelse(is.na(Flag), 
+                        as.character(Value), 
+                        paste0("<", Flag))
+         ) %>%
+  select(`Unique site ID`, Year, Month, Day, `Sample depth m`, 
+         Parameter, Unit, Value)
+
+```
+
+
+## 4. Save to excel 
+```{r}
+
+openxlsx::write.xlsx(
+  data_chem_2019,
+  "Nordisk_database_formatted/NIVA reference rivers chemistry - 2019.xlsx")
+
+```
+
+
+## 5. Get 2017-2018 data (from script 505)
+
+### Get data and add filtering variable 'Include'
+```{r}
+
+dat <- read.csv("Nordisk_database_data/Water chemistry - 2017-18.csv", stringsAsFactors = FALSE)
+
+# dat$Parameter %>% unique() %>% sort()
+# data_chem_2019$Parameter %>% unique() %>% sort()
+
+nrow(dat)
+dat <- dat %>%
+  left_join(dat_param_select %>% mutate(Include = TRUE), 
+            by = c("Parameter"="Variable", "UNIT2"="Unit"))
+nrow(dat)
+
+table(addNA(dat$Include))
+
+if (FALSE){
+  dat %>%
+    filter(Include) %>%
+    count(Parameter)
+}
+
+```
+### #Check 2
+```{r}
+
+xtabs(~DEPTH1 + DEPTH2, dat)
+
+xtabs(~CONVERSION_FACTOR, dat)
+
+xtabs(~UNIT + UNIT2 + CONVERSION_FACTOR, dat)
+
+dat %>%
+  filter(UNIT %in% "UG_SIO2_P_L") %>%
+  select(VALUE, UNIT, UNIT2) %>%
+  head(4)
+```
+
+
+### Format data
+```{r}
+
+data_chem_2017_18 <- dat %>%
+  filter(Include) %>%
+  rename(µ`Sample depth m` = DEPTH1,
+         Unit = UNIT2) %>%
+  mutate(`Unique site ID` = as.character(STATION_ID),
+         Date = ymd_hms(SAMPLE_DATE),
+         Year = year(Date),
+         Month = month(Date),
+         Day = day(Date)
+  ) %>%
+  mutate(Value = VALUE*CONVERSION_FACTOR,
+         Value = ifelse(is.na(FLAG1), 
+                        as.character(Value), 
+                        paste0("<", Value))
+         ) %>%
+  select(`Unique site ID`, Year, Month, Day, `Sample depth m`, 
+         Parameter, Unit, Value)
+
+```
+
+
+## Combine and save  
+```{r}
+
+data_chem_2017_19 <- bind_rows(data_chem_2017_18, data_chem_2019)
+
+openxlsx::write.xlsx(
+  data_chem_2017_19,
+  "Nordisk_database_formatted/NIVA reference rivers chemistry - 2017-19.xlsx")
+
+```
+
+

@@ -1,0 +1,176 @@
+---
+title: "501: Nordic database submission - chemistry"
+author: "DHJ"
+date: "5 3 2020"
+output: html_document
+---
+
+## 1. Libraries
+```{r}
+
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+
+```
+
+## 2. Read data  
+
+### 2019 data  
+```{r}
+
+# Read main data, with col_names = FALSE so column names are X__1, X__2 etc. 
+dat <- read_excel("Nordisk_database_data/Typifiseringsparametere 2019 snitt, sd osv.xlsx",
+                  sheet = "BunndyrCounts", col_names = FALSE, range = "A6:CA159")
+names(dat)[1] <- "taxon_name"
+
+# Read headers, with same column range as main data to make sure column names (X__2, X__3 etc) are the same 
+# This becomes the look-up for dates + station names
+dat_headers <- read_excel("Nordisk_database_data/Typifiseringsparametere 2019 snitt, sd osv.xlsx",
+                  sheet = "BunndyrCounts", col_names = FALSE, range = "A1:CA4")
+
+# Check - column names from X__2 should be the same
+# names(dat)
+# names(dat_headers)
+
+#
+# Main data reshaped
+#
+dat_reshape1 <- dat %>%
+  pivot_longer(-taxon_name, names_to = "Index", values_to = "Abundance")
+
+#
+# Look-up for dates + station names, reshaped
+#
+dat_reshape2 <- t(as.matrix(dat_headers)) %>% 
+  as.data.frame(stringsAsFactors = FALSE) %>% 
+  select(V2, V3, V4)  #  pick the interesting columns
+# Set names for the first columns
+names(dat_reshape2) <- c("Stasjonskode", "Stasjonsnavn", "Date_text")
+#  Delete first line, it's not needed
+dat_reshape2 <- dat_reshape2[-1,]
+# The column names become rownames, make them a separate variable
+dat_reshape2$Index = rownames(dat_reshape2)
+# dat_reshape2
+
+#
+# Fix dates
+#
+# Make date for those dates formatted as date in Excel
+dat_reshape2$Date <- dat_reshape2$Date_text %>% lubridate::dmy_hms()
+
+# Use look-up (dat_reshape2) to add extra columns to dat_reshape1
+# Index (X__2, X__3 etc) is used 
+dat_reshape <- left_join(dat_reshape1, dat_reshape2, by = "Index") %>%
+  select(Stasjonskode, Stasjonsnavn, Date, taxon_name, Abundance) %>%
+  filter(!is.na(Abundance))
+
+dat_reshape
+
+
+```
+
+## 3. Plot for fun  
+```{r, fig.width=11, fig.height=7}
+
+# Number of occurences
+df_summ <- dat_reshape %>%
+  count(taxon_name) %>%
+  arrange(desc(n))
+# Check
+# df_summ
+
+dat_reshape %>%
+  left_join(df_summ) %>%
+  filter(n >= 20) %>%   # all species with >4 occurences
+  ggplot(aes(x = paste(Stasjonsnavn, Date),
+             y = taxon_name,
+             fill = log10(Abundance))) +
+  geom_raster() +
+  viridis::scale_fill_viridis() +
+  theme(axis.text.x = element_text(angle = -45, hjust = 0)) +
+  labs(x = "Stasjon/Dato", y = "Taxon")
+
+```
+
+
+## 4. Put on correct format for database   
+
+### Get station ID  
+```{r}
+
+df_stations <- read.csv("Nordisk_database_data/Stations - 2017-18.csv")
+codes <- unique(dat_reshape$Stasjonskode)
+sel <- codes %in% df_stations$STATION_CODE
+sum(!sel)
+
+```
+
+### Format
+```{r}
+
+data_for_database_2019 <- dat_reshape %>%
+  left_join(df_stations %>% select(STATION_CODE, STATION_ID),
+            by = c("Stasjonskode" = "STATION_CODE")) %>%
+  rename(`Unique site ID`= STATION_ID) %>%
+  mutate(Year = year(Date),
+         Month = month(Date),
+         Day = day(Date),
+         unit = "N/3 min") %>%
+  select(`Unique site ID`, Year, Month, Day, taxon_name, Abundance, unit)
+
+
+```
+
+
+## 5. Save
+```{r}
+
+openxlsx::write.xlsx(
+  data_for_database_2019,
+  "Nordisk_database_formatted/NIVA reference rivers bottom fauna 2019.xlsx")
+
+if (FALSE){
+  data_2019 <- read_excel("Nordisk_database_formatted/NIVA reference rivers bottom fauna 2019.xlsx")
+  }
+
+```
+
+## 6. Add 2017-18 data (script 505)  
+```{r}
+
+data_2017_18 <- read.csv("Nordisk_database_data/Bunnfauna - 2017-18.csv",
+                         stringsAsFactors = FALSE)
+
+data_2017_18 <- data_2017_18 %>%
+  rename(`Unique site ID`= STATION_ID,
+         taxon_name = NAME,
+         Abundance = VALUE) %>%
+  mutate(Date = ymd(SAMPLE_DATE)) %>%
+  mutate(Year = year(Date),
+         Month = month(Date),
+         Day = day(Date),
+         unit = "N/3 min") %>%
+  select(`Unique site ID`, Year, Month, Day, taxon_name, Abundance, unit)
+  
+
+```
+
+
+## 7. Combine 2017-18 with 2019  
+```{r}
+
+data_2017_19 <- bind_rows(data_2017_18, data_2019)
+
+if (FALSE){
+  openxlsx::write.xlsx(
+    data_2017_19,
+    "Nordisk_database_formatted/NIVA reference rivers bottom fauna 2017-19.xlsx")
+}
+
+
+```
+

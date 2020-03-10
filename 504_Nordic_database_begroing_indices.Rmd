@@ -1,0 +1,212 @@
+---
+title: "504_Nordic_database_begroing_indices"
+author: "DHJ"
+date: "6 3 2020"
+output: html_document
+---
+
+Indices for begroing 
+- Uses data from script 505 for 2017-2018 data  
+
+## 1. Libraries
+```{r}
+
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+
+source("501_Nordic_database_chemistry_functions.R", encoding = "UTF-8")
+
+```
+
+
+## 2. 2019 data  
+```{r}
+
+dat_2019 <- read_excel("Nordisk_database_data/Begroingsalger PIT og AIP - 2019.xlsx") %>%
+  mutate(Indeksverdi = as.numeric(Indeksverdi), 
+         EQR = as.numeric(EQR),
+         nEQR = as.numeric(nEQR))
+
+# Data from Access database  
+dat_2019_raw <- read_excel("Nordisk_database_data/Begroing RefElver data 2019.xlsx", sheet = "dates and site codes")
+dat_2019_codes <- read_excel("Nordisk_database_data/Begroing RefElver data 2019.xlsx", sheet = "site names and codes", skip = 2)
+  
+```
+
+### Put on long format  
+```{r}
+
+dat_ind <- dat_2019 %>% 
+  select(-c(EQR, nEQR)) %>% 
+  rename(Value = Indeksverdi)
+dat_EQR <- dat_2019 %>% 
+  select(-c(Indeksverdi, nEQR)) %>%
+  rename(Value = EQR) %>% 
+  mutate(Indeks = paste(Indeks, "EQR"))
+dat_nEQR <- dat_2019 %>% 
+  select(-c(Indeksverdi, EQR)) %>%
+  rename(Value = nEQR) %>% 
+  mutate(Indeks = paste(Indeks, "nEQR"))
+
+dat_2019 <- bind_rows(dat_ind, dat_EQR, dat_nEQR)
+
+```
+
+### Get data for STATION_ID  
+```{r}
+
+#
+# Fix stations 
+#
+sel <- dat_2019$`Aquamonitor St. kode` %in% "O_002-305_Atn4"; sum(sel)
+dat_2019$`Aquamonitor St. kode`[sel] <- "O_002-305_Atn_DAN04" 
+
+sel <- dat_2019$`Aquamonitor St. kode` %in% "O_002-305_Atn11"; sum(sel)
+dat_2019$`Aquamonitor St. kode`[sel] <- "O_002-305_Atn_DAN11"
+
+#
+# Station data
+#
+df_stations <- read.csv("Nordisk_database_data/Stations - 2017-18.csv")
+
+#
+# Check if all codes in dat_2019 are present in df_stations
+#
+codes <- unique(dat_2019$`Aquamonitor St. kode`)
+sel <- codes %in% df_stations$STATION_CODE
+sum(!sel)  # should be zero 
+
+# IF NOT all codes are present, fix them in dat_2019 (see above) 
+# codes[!sel]
+# df_stations$STATION_CODE %>% sort()
+
+```
+
+### Add STATION_ID  
+```{r}
+
+dat_2019 <- dat_2019 %>%
+  left_join(df_stations %>% select(STATION_CODE, STATION_ID), 
+            by = c("Aquamonitor St. kode" = "STATION_CODE"))
+
+
+```
+
+### Add dates  
+- Must first find Access code for the site ('lok_sta') from dat_2019_codes  
+- Can then get date from dat_2019_raw
+
+#### Check codes
+```{r}
+
+# Fix one
+dat_2019_codes <- dat_2019_codes %>%
+  mutate(st_kode = case_when(
+    st_navn %in% "Øydgardselva i Volda, RefElver" ~ "V_094-102_Øyd",
+    TRUE ~ st_kode
+  ))
+
+
+codes <- dat_2019$`Aquamonitor St. kode` %>% unique()
+sel <- codes %in% dat_2019_codes$st_kode
+sum(!sel) # should be zero
+
+# if not zero:
+if (FALSE){
+  codes[!sel]
+  dat_2019_codes$st_kode %>% sort()
+  
+  # For copy example to excel
+  dat_2019 %>%
+    filter(`Aquamonitor St. kode` %in% codes[!sel] &  Indeks == "PIT") %>%
+    write.table("clipboard", sep = "\t", dec = ",", row.names = FALSE)
+}
+
+# dat_2019_codes$lok_sta %>% sort()
+# dat_2019_raw$lok_sta %>% unique() %>% sort()
+
+# "O_002-305_Atn_DAN04" "O_002-300_Atn_DAN03" "O_002-305_Atn_DAN11"
+
+
+```
+
+#### Add Access database code  
+```{r}
+
+dat_2019 <- dat_2019 %>%
+  left_join(dat_2019_codes %>% select(st_kode, lok_sta),
+            by = c("Aquamonitor St. kode" = "st_kode"))
+
+
+```
+
+#### Add date
+```{r}
+dat_2019_dates <- dat_2019_raw %>%
+  count(lok_sta, dato)
+
+# Check if there is only one date per station 
+dat_2019_dates %>%
+  count(lok_sta) %>%
+  filter(n > 1) %>%
+  nrow()     # should be zero
+
+# Add date
+dat_2019 <- dat_2019 %>%
+  left_join(dat_2019_dates %>% select(lok_sta, dato))
+
+```
+
+### Put on correct format  
+```{r}
+
+data_2019_formatted <- dat_2019 %>%
+  mutate(Year = year(dato),
+         Month = month(dato),
+         Day = day(dato)) %>%
+  rename(`Unique site ID` = STATION_ID,
+         Index = Indeks) %>%
+  select(`Unique site ID`, Year, Month, Day, Index, Value)
+
+sel <- is.na(data_2019_formatted$Year); sum(sel)
+data_2019_formatted$Year[sel] <- 2019
+
+```
+
+
+
+## 3. 2017-18 data
+```{r}
+
+data_2017_18 <- read.csv("Nordisk_database_data/Begroingsalger PIT og AIP - 2017-18.csv")
+
+data_2017_18_formatted <- data_2017_18 %>%
+  mutate(Year = year(SAMPLE_DATE),
+         Month = month(SAMPLE_DATE),
+         Day = day(SAMPLE_DATE)) %>%
+  rename(`Unique site ID` = STATION_ID,
+         Index = NAME,
+         Value = VALUE) %>%
+  select(`Unique site ID`, Year, Month, Day, Index, Value)
+
+```
+
+## 4. Data formatted  
+```{r}
+
+data_formatted <- bind_rows(data_2017_18_formatted, data_2019_formatted)
+
+xtabs(~Year + Index, data_formatted)
+
+```
+
+## 5. Save  
+```{r}
+
+openxlsx::write.xlsx(data_formatted, "Nordisk_database_formatted/NIVA reference rivers BD diatoms.xlsx")
+
+```
+

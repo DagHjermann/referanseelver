@@ -1,0 +1,25 @@
+---
+title: "501_Nordic_database_stations"
+author: "DHJ"
+date: "5 3 2020"
+output: html_document
+---
+
+## 1. Libraries
+```{r}
+
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(readxl)
+
+
+```
+
+## 2. Read data  
+```{r}
+
+
+
+```
+

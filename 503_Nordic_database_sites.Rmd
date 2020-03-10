@@ -1,0 +1,436 @@
+---
+title: "503_Nordic_database_sites"
+author: "DHJ"
+date: "6 3 2020"
+output: html_document
+---
+
+## 1. Libraries
+```{r}
+
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+
+```
+
+## 2. Data
+```{r}
+
+# Chemical data (which also are the stations of befgroing and bunndyr)
+dat <- read_excel("Nordisk_database_data/Resultater 2019.xlsx", sheet = "Stasjoner")
+
+# We use this for Vannforekomst ID (Surface Water Body Code)
+df_typifisering <- read_excel("Nordisk_database_data/Typifiseringsparametere 2019 snitt, sd osv.xlsx", 
+                      sheet = "StationAttribute")
+
+# Vannmiljø data
+# All data in project "Referanseelver"  
+df_vm <- read_excel("Nordisk_database_data/Vannmiljo_2017_2019.xlsx", guess_max = 38000)
+
+# NIVAbase (from script 505)
+df_nivabase <- read.csv("Nordisk_database_data/Stations - 2017-18.csv")
+
+# Water body info (info on "National type") 
+df_waterbodies <- read_excel("K:/Prosjekter/Vanndirektivet/Nordisk fys-kjem QE/SOW_SWB_SurfaceWaterBody_NO.xlsx")
+
+# River/catchment data
+df_riverinfo <- read_excel("Nordisk_database_data/Stations and catchment data all rivers.xlsx")
+
+
+```
+
+### Check Vannmiljø  
+Conclusion is that fish belong to separate stations, while both chemistry, påvekstalger and   
+bunndyr belong to a single station
+```{r}
+
+if (FALSE){
+  
+  # Shows types of medium for each station 
+  df_vm %>%
+    group_by(Vannlokalitet_kode, Vannlokalitet) %>%
+    summarise(n = n(), Medium = paste(unique(Medium_navn), collapse = ",")) %>% View()
+  
+  df_vm %>%
+    count(Parameter_navn)
+  
+  # Check some sample parameters  
+  # And see which water locality they belong to
+  df_vm %>% 
+    filter(Parameter_navn %in% c("Begroing EQR eutrofiering", "Fosfat (ufiltrert)",
+                                 "Average Score per Taxon (ASPT)", "Estimert totalt antall fisk per arealenhet")) %>%
+    arrange(Parameter_navn) %>%
+    group_by(Vannlokalitet_kode, Vannlokalitet) %>%
+    summarise(n = n(), Medium = paste(unique(Parameter_navn), collapse = ",")) %>% View()
+  
+}
+
+
+```
+
+## 3. Add Vannmiljø columns to Nivabase stations  
+Not an obvious way to connect Vannmiljø and NIVA stations as both codes and names differ.  
+
+
+### Add UTM coordinates to df_nivabase  
+```{r}
+
+# Vannmiljø sites
+df_vm_sites <- df_vm %>%
+  count(Vannlokalitet_kode, Vannlokalitet, `UTM33 Ost (X)`, `UTM33 Nord (Y)`)
+
+#
+# Add UTM coordinates to df_nivabase
+#
+library(sp)
+crs_longlat <- "+proj=longlat +ellps=WGS84 +datum=WGS84"
+crs_utm <- "+proj=utm +zone=33 +ellps=WGS84 +datum=WGS84 +units=m"
+ 
+SP <- SpatialPoints(df_nivabase[,c("LONGITUDE", "LATITUDE")],
+         proj4string=CRS(crs_longlat)
+         )
+SP.UTM <- spTransform(SP, CRS(crs_utm))
+# Add transformed coords to data set
+df_nivabase$`UTM33 Ost (X)` <- SP.UTM@coords[,1]
+df_nivabase$`UTM33 Nord (Y)` <- SP.UTM@coords[,2]
+
+```
+
+### Test plot - NIVAbase + Vannmiljø points
+```{r}
+
+ggplot(df_nivabase, aes(x = `UTM33 Ost (X)`, y = `UTM33 Nord (Y)`)) +
+  geom_point() +
+  geom_point(data = df_vm_sites, color = "blue",size = 3, pch = 1)
+
+```
+
+### Find closest Vannmiljø station     
+For each station in 'df_nivabase', find closest stations in Vannmiljø  
+```{r}
+
+#
+# Function: Find which observation in dat2 is closest to observation'i' in dat1
+# Returns index (of dat2 observation) and distance (if UTM, in meters)
+#
+find_closest <- function(i, dat1, dat2, x = "UTM33 Ost (X)", y = "UTM33 Nord (Y)"){
+  dist <- sqrt((dat1[[x]][i] - dat2[[x]])^2 + (dat1[[y]][i] - dat2[[y]])^2)
+  data.frame(Index = which.min(dist), Dist = min(dist) %>% round(1))
+}
+# Test
+# find_closest(1, df_nivabase, df_vm_sites)
+
+# For each station in 'df_nivabase', find closest stations in Vannmiljø  
+# Returns data frame as long as 'df_nivabase', with Index telling which 
+#   df_vm_sites row to pick
+df_closest <- df_nivabase %>% 
+  nrow() %>%
+  seq_len() %>%
+  map_df(find_closest, dat1 = df_nivabase, dat2 = df_vm_sites)
+
+# Pick rows of df_vm_sites row, and the two relevant columns  
+columns_to_add <- df_vm_sites[df_closest$Index, c("Vannlokalitet_kode", "Vannlokalitet")]
+
+# Add columns Index and Dist
+columns_to_add <- columns_to_add %>% bind_cols(df_closest)
+# columns_to_add
+
+# Remove (set to NA) Vannmiljø stations >1 km away form NIVA stations
+sel <- columns_to_add$Dist > 1000
+columns_to_add[sel,] <- rep(NA, 4)
+
+# Show result
+columns_to_add
+
+```
+
+### Add Vannmiljø columns to df_nivabase    
+Added by just adding the columns   
+```{r}
+# Added by just add in the columns   
+df_nivabase <- df_nivabase %>% bind_cols(columns_to_add)
+
+# For check
+if (FALSE){
+  df_nivabase %>%
+    select(STATION_ID, STATION_NAME, Vannlokalitet_kode, Vannlokalitet) %>% View()
+}
+
+# Save
+openxlsx::write.xlsx(df_nivabase, "Nordisk_database_data/NIVA and corresponding Vannmiljø stations.xlsx")
+
+```
+
+## 4. Add columns to dat
+
+
+### Add VannforekomstID   
+From df_typifisering  
+```{r}
+
+dat <- dat %>% 
+  left_join(
+    df_typifisering %>% select(StationId, VannforekomstID), # , Vannregion, `Vannregionens EU-CD`),
+    by = "StationId"
+  )
+
+# sel <- is.na(dat$VannforekomstID)
+# sum(sel)
+# dat[sel,]
+
+# Some VannforekomstID must be adjusted  
+dat <- dat %>% 
+  mutate(VannforekomstID = case_when(
+    StationCode %in% "O_002-305_Atn11" ~ "002-305-R",
+    StationCode %in% "O_002-305_Atn4"  ~ "002-305-R",
+    StationCode %in% "O_002-2572_Lun"  ~ "002-2572-R",
+    StationCode %in% "O_002-604_Vik"   ~ "002-604-R",
+    TRUE ~ VannforekomstID
+  ))
+
+sel <- is.na(dat$VannforekomstID)
+sum(sel)
+
+```
+
+### Add European VannforekomstID   
+Just add "NO" in front of it  
+```{r}
+
+dat <- dat %>%
+  mutate(VannforekomstID_EU = paste0("NO", VannforekomstID))
+
+```
+
+
+### Add Vannlokalitet_kode from Vannmiljø   
+Will become "National ID for lake/river"  
+```{r}
+
+dat <- dat %>% 
+  left_join(
+    df_nivabase %>% select(STATION_ID, Vannlokalitet_kode, Vannlokalitet), # , Vannregion, `Vannregionens EU-CD`),
+    by = c("StationId" = "STATION_ID")
+  )
+
+```
+
+
+
+### Add Vannregion/vannområde
+```{r}
+
+dat_vann_nett <- read_excel("Nordisk_database_data/Vann-nett elv.xlsx", guess_max = 19000)
+# write.table(dat_vann_nett, "Nordisk_database_data/Vann-nett elv.tsv")
+
+```
+
+### Check if all VannforekomstID are in data_vann_nett
+```{r}
+
+x <- dat$VannforekomstID 
+sel <- x %in% dat_vann_nett$VannforekomstID
+
+sum(!sel)  # should be zero
+# x[!sel]
+
+```
+
+### Add Vannregion + vannområde   
+```{r}
+
+dat <- dat %>% 
+  left_join(dat_vann_nett %>% select(VannforekomstID, 
+                                     VannregionID, Vannregion,
+                                     VannområdeID, Vannområde),
+            by = "VannforekomstID")
+
+# dat %>%  View()
+
+
+```
+
+## 5. Add 'National Type'  
+
+Get data from the given excel file (tip from Kari)   
+```{r}
+
+df_waterbodies_sel <- df_waterbodies %>%
+  filter(euSurfaceWaterBodyCode %in% dat$VannforekomstID_EU)
+
+sel <- dat$VannforekomstID_EU %in% df_waterbodies_sel$euSurfaceWaterBodyCode
+sum(!sel)  # should be zero
+
+```
+
+### Add to data
+```{r}
+
+dat <- dat %>%
+  left_join(df_waterbodies_sel %>% select(euSurfaceWaterBodyCode, surfaceWaterBodyTypeCode),
+            by = c("VannforekomstID_EU" = "euSurfaceWaterBodyCode"))
+
+```
+
+
+
+## 6. Add non-mandatory river/catchment info  
+
+### Check 
+```{r}
+
+# Fix df_riverinfo$Kode
+df_riverinfo <- df_riverinfo %>% 
+  mutate(Kode = case_when(
+    Kode %in% "O_002-305_Atn_DAN11" ~ "O_002-305_Atn11",
+    Kode %in% "O_002-305_Atn_DAN04" ~ "O_002-305_Atn4",
+    TRUE ~ Kode
+  ))
+
+sel <- dat$StationCode %in% df_riverinfo$Kode
+sum(!sel) # should be 0
+
+# If not all are found - fix df_riverinfo$Kode as shown above
+# dat$StationCode[!sel]
+# df_riverinfo$Kode %>% sort()
+
+```
+
+
+### Add columns from 'df_riverinfo'  
+```{r}
+
+dat <- dat %>%
+  left_join(df_riverinfo %>% select(Kode, HEIGHT_50, AREAL_KM2, `AVRENNING (mm/år)`),
+            by = c("StationCode" = "Kode"))
+
+```
+
+## 7. Put together mandatory columns   
+we include only the following non-mandatory columns:
+- "Site name" (we use Vannmiljø name here, not NIVA name)  
+- Altitude (median of river)  
+- Catchment size
+- Runoff  
+```{r}
+
+dat_formatted <- dat %>% 
+  mutate(Category = "River", 
+         Country = "Norway",
+         `EUID for site` = paste0("NO", Vannlokalitet_kode),
+         `Monitoring program` = "Referanseelver",
+         `IC Type` = "",
+         `Lake size` = NA, `Lake mean depth` = NA, `Lake max depth` = NA, 
+         `Clay impact` = NA, `Point sources of nutrients` = NA, `Water level fluctuaion` = NA, `Connectivity` = NA,
+         `Ecological status` = as.character(NA), `Impact Acidification` = NA, 
+         `Impact Eutrophication`  = NA, `Comments` = as.character(NA)
+         ) %>%
+  rename(`Unique Site ID`= StationId,
+         `National Type` = surfaceWaterBodyTypeCode,
+         `National ID for lake/river` = VannforekomstID,
+         `EUID for water body` = VannforekomstID_EU,
+         `Sub unit code` = VannområdeID, 
+         `Sub unit name` = Vannområde,
+         `River basin district code` = VannregionID, 
+         `River basin district name` = Vannregion,
+         `Site name` = Vannlokalitet,          # we use Vannmiljø name here, not NIVA name
+         Altitude = HEIGHT_50,
+         `Catchment size` = AREAL_KM2,
+         Runoff = `AVRENNING (mm/år)`
+) %>%
+  # Order columns correctly
+  select(`Unique Site ID`, Latitude, Longitude, Category,
+         `National Type`, Country, `EUID for site`, `EUID for water body`, `National ID for lake/river`, 
+         `Sub unit code`, `Sub unit name`, `River basin district code`, `River basin district name`,
+         `Site name`, `IC Type`, `Monitoring program`, Altitude, `Catchment size`, 
+         `Lake size`, `Lake mean depth`, `Lake max depth`, `Runoff`,
+         `Clay impact`, `Point sources of nutrients`, `Water level fluctuaion`, `Connectivity`,
+         `Ecological status`, `Impact Acidification`, `Impact Eutrophication`, `Comments`) 
+
+View(dat_formatted)
+
+#
+# MANDATORY
+#
+# Unique Site ID
+# Latitude DecDeg
+# Longitude DecDeg
+# Category (lake/river)
+# National Type
+# Country
+# EUID for  site
+# EUID for water body
+# National ID for lake/river
+# Sub unit code
+# Sub unit name
+# River basin district code
+# River basin district name
+#
+# NON-MANDATORY
+#
+# Site name		Local name of site
+# IC Type		According to intercalibration work
+# Monitoring program. 		Name or type of monitoring program
+# Altitude 	m s a l	
+# Catchment size 	km2	
+# Lake size	km2	
+# Lake mean depth	m	
+# Lake max depth (estimate/model)	m	
+# Runoff	m/yr	30 year mean as late as possible).
+# Clay impact	y/n	Please write how this was  defined.
+# Point sources of nutrients 	y/n	
+# Water level fluctuaion	y/n	
+# Connectivity	y/n	y means that conectivity is impacted.
+# Ecological status 		As reported to commission
+# Impact Acidification	y/n	According to  impact assessment
+# Impact Eutrophication	y/n	According to  impact assessment
+# Comments	Free text	Any information in the site that might be useful
+#
+
+
+
+```
+
+
+
+## 8. Save  
+```{r}
+
+openxlsx::write.xlsx(dat_formatted, "Nordisk_database_formatted/NIVA reference rivers sites 2017-2019.xlsx")
+
+```
+
+
+## 9. Appendix. Check shapefile of European Vannforekomster  
+```{r}
+
+library(sf)
+# Norway (coastline) in UTM coordinates
+shape_lake <- st_read("WISE WFD shapefiles/eea_v_4326_250_k_wise-wfd2016_p_2016-2019_v01_r03/shapefile/SurfaceWaterBody/SurfaceWaterBody.shp")
+
+shape_river <- st_read("WISE WFD shapefiles/eea_v_4326_250_k_wise-wfd2016_p_2016-2019_v01_r03/shapefile/SurfaceWaterBody/SurfaceWaterBodyLine.shp")
+
+# st_crs(shape) <- "+proj=utm +zone=33"  # set coordinate system
+
+
+```
+
+### Check some
+```{r}
+
+# 4 random lakes
+shape_lake %>%
+  filter(nameTxtLan == "nor") %>% head(4)
+
+# All rivers including Glomma 
+shape_river %>%
+  filter(grepl("GLOMMA", nameText))
+
+```
+
+
+4
