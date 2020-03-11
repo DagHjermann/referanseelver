@@ -16,6 +16,7 @@ library(purrr)
 library(tidyr)
 library(ggplot2)
 library(readxl)
+library(lubridate)
 
 source("501_Nordic_database_chemistry_functions.R", encoding = "UTF-8")
 
@@ -160,6 +161,22 @@ dat_2019 <- dat_2019 %>%
 
 ```
 
+### Fix remaining dates    
+Date gotten on mail from Susi  
+```{r}
+
+# dat_2019 %>% filter(is.na(dato)) %>%
+#   count(`Aquamonitor St. kode`)
+
+sel <- dat_2019$`Aquamonitor St. kode` %in% c("O_002-1869_Dor", "O_002-300_Atn_DAN03", 
+                                              "O_002-305_Atn_DAN04", "O_002-305_Atn_DAN11")
+sum(sel)
+dat_2019$dato[sel] <- "2019-08-30 UTC"
+
+
+```
+
+
 ### Put on correct format  
 ```{r}
 
@@ -170,9 +187,6 @@ data_2019_formatted <- dat_2019 %>%
   rename(`Unique site ID` = STATION_ID,
          Index = Indeks) %>%
   select(`Unique site ID`, Year, Month, Day, Index, Value)
-
-sel <- is.na(data_2019_formatted$Year); sum(sel)
-data_2019_formatted$Year[sel] <- 2019
 
 ```
 
