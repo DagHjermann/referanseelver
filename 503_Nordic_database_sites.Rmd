@@ -21,7 +21,12 @@ library(lubridate)
 ```{r}
 
 # Chemical data (which also are the stations of befgroing and bunndyr)
-dat <- read_excel("Nordisk_database_data/Resultater 2019.xlsx", sheet = "Stasjoner")
+# BUT 2019 only
+dat_2019 <- read_excel("Nordisk_database_data/Resultater 2019.xlsx", sheet = "Stasjoner")
+
+dat_all <- read_excel("Nordisk_database_formatted/NIVA reference rivers chemistry - 2017-19.xlsx") %>%
+  mutate(StationId = as.numeric(`Unique site ID`)) %>%
+  count(StationId)
 
 # We use this for Vannforekomst ID (Surface Water Body Code)
 df_typifisering <- read_excel("Nordisk_database_data/Typifiseringsparametere 2019 snitt, sd osv.xlsx", 
@@ -32,7 +37,7 @@ df_typifisering <- read_excel("Nordisk_database_data/Typifiseringsparametere 201
 df_vm <- read_excel("Nordisk_database_data/Vannmiljo_2017_2019.xlsx", guess_max = 38000)
 
 # NIVAbase (from script 505)
-df_nivabase <- read.csv("Nordisk_database_data/Stations - 2017-18.csv")
+df_nivabase <- read.csv("Nordisk_database_data/Stations - 2017-18.csv", stringsAsFactors = FALSE)
 
 # Water body info (info on "National type") 
 df_waterbodies <- read_excel("K:/Prosjekter/Vanndirektivet/Nordisk fys-kjem QE/SOW_SWB_SurfaceWaterBody_NO.xlsx")
@@ -98,6 +103,7 @@ SP.UTM <- spTransform(SP, CRS(crs_utm))
 df_nivabase$`UTM33 Ost (X)` <- SP.UTM@coords[,1]
 df_nivabase$`UTM33 Nord (Y)` <- SP.UTM@coords[,2]
 
+rm(SP, SP.UTM)
 ```
 
 ### Test plot - NIVAbase + Vannmiljø points
@@ -165,37 +171,51 @@ openxlsx::write.xlsx(df_nivabase, "Nordisk_database_data/NIVA and corresponding 
 
 ```
 
-## 4. Add columns to dat
-
+## 4. Add columns to dat_all
 
 ### Add VannforekomstID   
 From df_typifisering  
 ```{r}
 
-dat <- dat %>% 
-  left_join(
-    df_typifisering %>% select(StationId, VannforekomstID), # , Vannregion, `Vannregionens EU-CD`),
-    by = "StationId"
-  )
+# Create dat by adding StationCode to dat_all
+dat <- dat_all %>%
+  left_join(df_nivabase %>% select(STATION_ID, STATION_CODE),
+            by = c("StationId" = "STATION_ID")) %>%
+  rename(StationCode = STATION_CODE)
+
+# Make VannforekostID
+x <- str_extract(dat$StationCode, "(?<=_)[^_]+(?=_)")
+x <- paste0(x, "-R")
+dat$VannforekomstID <- x
 
 # sel <- is.na(dat$VannforekomstID)
 # sum(sel)
 # dat[sel,]
 
 # Some VannforekomstID must be adjusted  
-dat <- dat %>% 
-  mutate(VannforekomstID = case_when(
-    StationCode %in% "O_002-305_Atn11" ~ "002-305-R",
-    StationCode %in% "O_002-305_Atn4"  ~ "002-305-R",
-    StationCode %in% "O_002-2572_Lun"  ~ "002-2572-R",
-    StationCode %in% "O_002-604_Vik"   ~ "002-604-R",
-    TRUE ~ VannforekomstID
-  ))
+# dat <- dat %>% 
+#   mutate(VannforekomstID = case_when(
+#     StationCode %in% "O_002-305_Atn11" ~ "002-305-R",
+#     StationCode %in% "O_002-305_Atn4"  ~ "002-305-R",
+#     StationCode %in% "O_002-2572_Lun"  ~ "002-2572-R",
+#     StationCode %in% "O_002-604_Vik"   ~ "002-604-R",
+#     TRUE ~ VannforekomstID
+#   ))
 
 sel <- is.na(dat$VannforekomstID)
 sum(sel)
 
 ```
+
+### Add Latitude, Longitude
+```{r}
+
+dat <- dat %>%
+  left_join(df_nivabase %>% select(STATION_ID, LONGITUDE, LATITUDE),
+            by = c("StationId" = "STATION_ID"))
+
+```
+
 
 ### Add European VannforekomstID   
 Just add "NO" in front of it  
@@ -254,7 +274,7 @@ dat <- dat %>%
 
 ```
 
-## 5. Add 'National Type'  
+## 5. Add 'National Type' + 'Ecological status' 
 
 Get data from the given excel file (tip from Kari)   
 ```{r}
@@ -271,7 +291,9 @@ sum(!sel)  # should be zero
 ```{r}
 
 dat <- dat %>%
-  left_join(df_waterbodies_sel %>% select(euSurfaceWaterBodyCode, surfaceWaterBodyTypeCode),
+  left_join(df_waterbodies_sel %>% select(euSurfaceWaterBodyCode, 
+                                          surfaceWaterBodyTypeCode,
+                                          swEcologicalStatusOrPotentialValue),
             by = c("VannforekomstID_EU" = "euSurfaceWaterBodyCode"))
 
 ```
@@ -283,20 +305,10 @@ dat <- dat %>%
 ### Check 
 ```{r}
 
-# Fix df_riverinfo$Kode
-df_riverinfo <- df_riverinfo %>% 
-  mutate(Kode = case_when(
-    Kode %in% "O_002-305_Atn_DAN11" ~ "O_002-305_Atn11",
-    Kode %in% "O_002-305_Atn_DAN04" ~ "O_002-305_Atn4",
-    TRUE ~ Kode
-  ))
-
-sel <- dat$StationCode %in% df_riverinfo$Kode
-sum(!sel) # should be 0
-
-# If not all are found - fix df_riverinfo$Kode as shown above
-# dat$StationCode[!sel]
-# df_riverinfo$Kode %>% sort()
+# Make VannforekostID for df_riverinfo
+x <- str_extract(df_riverinfo$Kode, "(?<=_)[^_]+(?=_)")
+x <- paste0(x, "-R")
+df_riverinfo$VannforekomstID <- x
 
 ```
 
@@ -305,8 +317,12 @@ sum(!sel) # should be 0
 ```{r}
 
 dat <- dat %>%
-  left_join(df_riverinfo %>% select(Kode, HEIGHT_50, AREAL_KM2, `AVRENNING (mm/år)`),
-            by = c("StationCode" = "Kode"))
+  left_join(df_riverinfo %>% select(VannforekomstID, HEIGHT_50, AREAL_KM2, `AVRENNING (mm/år)`),
+            by = c("VannforekomstID"))
+
+sel <- is.na(dat$HEIGHT_50)
+sum(sel) # 2
+dat[sel,]
 
 ```
 
@@ -325,11 +341,14 @@ dat_formatted <- dat %>%
          `Monitoring program` = "Referanseelver",
          `IC Type` = "",
          `Lake size` = NA, `Lake mean depth` = NA, `Lake max depth` = NA, 
-         `Clay impact` = NA, `Point sources of nutrients` = NA, `Water level fluctuaion` = NA, `Connectivity` = NA,
-         `Ecological status` = as.character(NA), `Impact Acidification` = NA, 
+         `Clay impact` = NA, `Point sources of nutrients` = NA, 
+         `Water level fluctuaion` = NA, `Connectivity` = NA,
+         `Impact Acidification` = NA, 
          `Impact Eutrophication`  = NA, `Comments` = as.character(NA)
          ) %>%
   rename(`Unique Site ID`= StationId,
+         Longitude = LONGITUDE,
+         Latitude = LATITUDE,
          `National Type` = surfaceWaterBodyTypeCode,
          `National ID for lake/river` = VannforekomstID,
          `EUID for water body` = VannforekomstID_EU,
@@ -340,7 +359,8 @@ dat_formatted <- dat %>%
          `Site name` = Vannlokalitet,          # we use Vannmiljø name here, not NIVA name
          Altitude = HEIGHT_50,
          `Catchment size` = AREAL_KM2,
-         Runoff = `AVRENNING (mm/år)`
+         Runoff = `AVRENNING (mm/år)`,
+         `Ecological status` = swEcologicalStatusOrPotentialValue
 ) %>%
   # Order columns correctly
   select(`Unique Site ID`, Latitude, Longitude, Category,
@@ -351,7 +371,7 @@ dat_formatted <- dat %>%
          `Clay impact`, `Point sources of nutrients`, `Water level fluctuaion`, `Connectivity`,
          `Ecological status`, `Impact Acidification`, `Impact Eutrophication`, `Comments`) 
 
-View(dat_formatted)
+# View(dat_formatted)
 
 #
 # MANDATORY
@@ -400,12 +420,14 @@ View(dat_formatted)
 ## 8. Save  
 ```{r}
 
-openxlsx::write.xlsx(dat_formatted, "Nordisk_database_formatted/NIVA reference rivers sites 2017-2019.xlsx")
+openxlsx::write.xlsx(dat_formatted, 
+                     "Nordisk_database_formatted/NIVA reference rivers sites 2017-2019.xlsx")
 
 ```
 
 
-## 9. Appendix. Check shapefile of European Vannforekomster  
+## 9. Appendix. Check shapefile of European Vannforekomster   
+Contains no data, only the shapes
 ```{r}
 
 library(sf)

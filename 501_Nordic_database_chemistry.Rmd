@@ -13,6 +13,7 @@ library(purrr)
 library(tidyr)
 library(ggplot2)
 library(readxl)
+library(lubridate)
 
 source("501_Nordic_database_chemistry_functions.R", encoding = "UTF-8")
 
@@ -31,8 +32,6 @@ head(df_stat)
 dat <- AqMexport_read_waterchemistry("Nordisk_database_data/Resultater 2019.xlsx",
                                      sheetname = "Fra AM",
                                      remove_duplicates  = FALSE)
-str(dat)
-str(dat_units)
 
 # Get units
 dat_units <- read_excel("Nordisk_database_data/Resultater 2019.xlsx",
@@ -41,6 +40,9 @@ dat_units <- read_excel("Nordisk_database_data/Resultater 2019.xlsx",
 dat_units$Variable <- rownames(dat_units)
 names(dat_units)[1] <- "Unit"
 # dat_units
+
+# str(dat)
+# str(dat_units)
 
 # Add units to data
 dat <- dat %>%
@@ -70,7 +72,7 @@ dat %>%
 ```{r}
 
 data_chem_2019 <- dat %>%
-  filter(Include) %>%
+  filter(Include & !is.na(Value)) %>%
   rename(`Unique site ID` = StationId,
          Parameter = Variable) %>%
   mutate(Year = substr(SampleDate, 7, 10) %>% as.numeric(),
@@ -79,7 +81,7 @@ data_chem_2019 <- dat %>%
          `Sample depth m` = 0) %>%
   mutate(Value = ifelse(is.na(Flag), 
                         as.character(Value), 
-                        paste0("<", Flag))
+                        paste0("<", Value))
          ) %>%
   select(`Unique site ID`, Year, Month, Day, `Sample depth m`, 
          Parameter, Unit, Value)
@@ -142,8 +144,8 @@ dat %>%
 ```{r}
 
 data_chem_2017_18 <- dat %>%
-  filter(Include) %>%
-  rename(µ`Sample depth m` = DEPTH1,
+  filter(Include & !is.na(VALUE)) %>%
+  rename(`Sample depth m` = DEPTH1,
          Unit = UNIT2) %>%
   mutate(`Unique site ID` = as.character(STATION_ID),
          Date = ymd_hms(SAMPLE_DATE),
