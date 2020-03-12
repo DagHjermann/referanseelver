@@ -211,13 +211,12 @@ nrow(df_bd_counts)  # 3467
 
 df_bd_counts %>%
   arrange(STATION_CODE, SAMPLE_DATE, NAME) %>%
-  select(STATION_ID, STATION_CODE, SAMPLE_DATE, NAME, VALUE) %>%
+  select(STATION_ID, STATION_CODE, SAMPLE_DATE, TAXONOMY_CODE_ID, NAME, VALUE) %>%
   head(20)  
 
 ```
 
-
-### Save  
+### Save 2017-18 data     
 
 ```{r}
 
@@ -225,6 +224,26 @@ write.csv(df_bd_counts, "Nordisk_database_data/Bunnfauna - 2017-18.csv")
 
 ```
 
+### Find taxon codes for 2019 data as well  
+```{r}
+
+dat <- read_excel("Nordisk_database_data/Typifiseringsparametere 2019 snitt, sd osv.xlsx",
+                  sheet = "BunndyrCounts", col_names = FALSE, range = "A6:CA159")
+
+df_taxcodes2 <- get_nivabase_selection("TAXONOMY_CODE_ID, NAME",
+                                      "TAXONOMY_CODES",
+                                      "NAME",
+                                      dat$X__1, values_are_text = TRUE)
+
+nrow(dat)
+nrow(df_taxcodes2)
+
+dat <- dat %>% 
+  left_join(df_taxcodes2, by = c("X__1" = "NAME"))
+
+write.csv(dat, "Nordisk_database_data/Bunnfauna - 2019.csv", row.names = FALSE)
+
+```
 
 ## 6. Water chemistry   
 

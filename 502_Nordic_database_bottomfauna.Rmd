@@ -23,9 +23,13 @@ library(lubridate)
 ```{r}
 
 # Read main data, with col_names = FALSE so column names are X__1, X__2 etc. 
-dat <- read_excel("Nordisk_database_data/Typifiseringsparametere 2019 snitt, sd osv.xlsx",
-                  sheet = "BunndyrCounts", col_names = FALSE, range = "A6:CA159")
+dat <- read.csv("Nordisk_database_data/Bunnfauna - 2019.csv",
+                         stringsAsFactors = FALSE)
 names(dat)[1] <- "taxon_name"
+
+# Save taxon codes for later, and remove them from data set
+dat_taxoncode_2019 <- dat %>% select(taxon_name, TAXONOMY_CODE_ID)
+dat <- dat %>% select(-TAXONOMY_CODE_ID)
 
 # Read headers, with same column range as main data to make sure column names (X__2, X__3 etc) are the same 
 # This becomes the look-up for dates + station names
@@ -115,13 +119,16 @@ sum(!sel)
 data_for_database_2019 <- dat_reshape %>%
   left_join(df_stations %>% select(STATION_CODE, STATION_ID),
             by = c("Stasjonskode" = "STATION_CODE")) %>%
-  rename(`Unique site ID`= STATION_ID) %>%
+  left_join(dat_taxoncode_2019 %>% select(taxon_name, TAXONOMY_CODE_ID),
+            by = "taxon_name") %>%
+  rename(`Unique site ID`= STATION_ID,
+         Taxon_code = TAXONOMY_CODE_ID) %>%
   mutate(Year = year(Date),
          Month = month(Date),
          Day = day(Date),
          unit = "N/3 min") %>%
-  select(`Unique site ID`, Year, Month, Day, taxon_name, Abundance, unit)
-
+  select(`Unique site ID`, Year, Month, Day, 
+         Taxon_code, taxon_name, Abundance, unit)
 
 ```
 
@@ -147,6 +154,7 @@ data_2017_18 <- read.csv("Nordisk_database_data/Bunnfauna - 2017-18.csv",
 
 data_2017_18 <- data_2017_18 %>%
   rename(`Unique site ID`= STATION_ID,
+         Taxon_code = TAXONOMY_CODE_ID,
          taxon_name = NAME,
          Abundance = VALUE) %>%
   mutate(Date = ymd(SAMPLE_DATE)) %>%
@@ -154,7 +162,7 @@ data_2017_18 <- data_2017_18 %>%
          Month = month(Date),
          Day = day(Date),
          unit = "N/3 min") %>%
-  select(`Unique site ID`, Year, Month, Day, taxon_name, Abundance, unit)
+  select(`Unique site ID`, Year, Month, Day, Taxon_code, taxon_name, Abundance, unit)
   
 
 ```
@@ -163,14 +171,28 @@ data_2017_18 <- data_2017_18 %>%
 ## 7. Combine 2017-18 with 2019  
 ```{r}
 
-data_2017_19 <- bind_rows(data_2017_18, data_2019)
+data_2017_19 <- bind_rows(data_2017_18, data_for_database_2019) %>%
+  mutate(Zone = "River",
+         `Sampling depth` = NA) %>%
+  select(`Unique site ID`, Year, Month, Day, Zone, `Sampling depth`,
+                Taxon_code, taxon_name, Abundance, unit)
 
+```
+
+## Save
+
+```{r}
 if (FALSE){
   openxlsx::write.xlsx(
     data_2017_19,
     "Nordisk_database_formatted/NIVA reference rivers bottom fauna 2017-19.xlsx")
 }
 
+
+
+```
+
+```{r}
 
 ```
 
